@@ -1,0 +1,138 @@
+import asyncio
+import threading
+from adapters.web import HttpClient
+from adapters.llm import GeminiAnalyzer
+from collector import collect_and_save
+from adapters.db_provider import DbProvider
+from adapters.db import build_crud
+from core import conf
+
+
+class AsyncBackend:
+    def __init__(self):
+        self.loop = asyncio.new_event_loop()
+        self.client = None
+        self.llm = None
+        self.db_provider = None
+        self._db = None
+        self.is_ready = threading.Event()  # Сигнал готовности зависимостей
+
+        # Запускаем поток-воркер
+        self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
+        self.thread.start()
+
+    @property
+    def db(self):
+        return build_crud(self.db_provider.session_factory)
+
+    def _run_event_loop(self):
+        """Метод выполняется в отдельном потоке."""
+        asyncio.set_event_loop(self.loop)
+
+        # Инициализируем зависимости ВНУТРИ цикла
+        self.client = HttpClient()
+        self.llm = GeminiAnalyzer()
+        self.db_provider = DbProvider(url = conf.db_url)
+
+        # Сообщаем основному потоку, что мы готовы
+        self.is_ready.set()
+
+        # Запускаем бесконечный цикл
+        self.loop.run_forever()
+
+
+    def run_task(self, coro, callback):
+        """
+        Отправляет корутину на выполнение в поток asyncio.
+        callback будет вызван в потоке Tkinter (через .after)
+        """
+
+        def done_callback(fut):
+            try:
+                result = fut.result()
+                # Передаем результат в главный поток через очередь событий Tkinter
+                callback(result)
+            except Exception as e:
+                callback(e)
+
+        # Безопасно планируем задачу в чужом цикле событий
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        future.add_done_callback(done_callback)
+
+
+    def collect_and_save(self, callback):
+        async def task_wrapper():
+            return await collect_and_save(self.client, self.llm, self.db)
+
+        self.run_task(task_wrapper(), callback)
+
+
+    async def _shutdown_resources(self):
+        """Асинхронно закрывает все соединения и отменяет задачи."""
+        # 1. Отменяем все активные задачи в этом цикле, кроме текущей
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+
+        if tasks:
+            # Даем задачам шанс корректно завершиться после отмены
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 2. Закрываем HttpClient
+        if self.client:
+            await self.client.close()
+
+        # 3. Закрываем БД (ИСПРАВЛЕНА ТВОЯ ОПЕЧАТКА: было self.client.close())
+        if self.db_provider:
+            try:
+                # Убедись, что в DbProvider есть асинхронный метод close/dispose
+                await self.db_provider.engine.dispose()
+            except Exception as e:
+                print(f"Ошибка при закрытии dbProvider: {e}")
+
+    # async def _shutdown_resources(self):
+    #     """Асинхронно закрывает все соединения внутри цикла."""
+    #     # 1. Закрываем HTTP клиент
+    #     if self.client:
+    #         try:
+    #             await self.client.close()
+    #         except Exception as e:
+    #             print(f"Ошибка при закрытии HttpClient: {e}")
+    #
+    #     # 2. Закрываем базу данных
+    #     # (в SQLAlchemy 2.0 async это обычно engine.dispose())
+    #     if self.db_provider:
+    #         try:
+    #             await self.client.close()
+    #         except Exception as e:
+    #             print(f"Ошибка при закрытии dbProvider: {e}")
+
+        # if self.llm:
+        #     try:
+        #         await self.llm.close()
+        #     except Exception as e:
+        #         print(f"Ошибка при закрытии GeminiAnalyzer: {e}")
+
+    def stop(self):
+        """Корректное завершение работы потока и ресурсов."""
+        if not self.loop.is_running():
+            return
+
+        # 1. Отправляем корутину очистки в цикл и ЖДЕМ её результата
+        future = asyncio.run_coroutine_threadsafe(self._shutdown_resources(), self.loop)
+
+        try:
+            # Блокируем основной поток (Tkinter) максимум на 3 секунды,
+            # чтобы дать соединениям закрыться изящно
+            future.result(timeout=3.0)
+        except TimeoutError:
+            print("Таймаут при закрытии ресурсов (некоторые сокеты могли остаться открытыми).")
+        except Exception as e:
+            print(f"Исключение при выходе: {e}")
+
+        # 2. Теперь безопасно останавливаем цикл
+        self.loop.call_soon_threadsafe(self.loop.stop)
+
+        # 3. Ждем, пока поток-воркер действительно завершится
+        if self.thread.is_alive():
+            self.thread.join(timeout=2.0)
