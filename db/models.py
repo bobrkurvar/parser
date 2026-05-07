@@ -27,9 +27,6 @@ class TrainingDataset(Base):
     ai_explanation: Mapped[str | None] = mapped_column(Text)
     ai_confidence: Mapped[float] = mapped_column()
 
-    # Для сравнения точности
-    basic_priority: Mapped[int] = mapped_column()
-
     # Техническое поле
     created_at: Mapped[datetime] = mapped_column(default=datetime.now())
 
@@ -45,7 +42,6 @@ class TrainingDataset(Base):
             "ai_tech_tags": self.ai_tech_tags,
             "ai_explanation": self.ai_explanation,
             "ai_confidence": self.ai_confidence,
-            "basic_priority": self.basic_priority,
             "human_priority": self.human_priority,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }

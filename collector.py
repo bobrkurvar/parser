@@ -1,5 +1,5 @@
 from filters import analyze_basic
-from dto import CollectResult, JobView, JobPriority
+from dto import CollectResult, JobView, JobPriority, AIAnalysis
 import logging
 from rss_categories import MAIN_URL, ALL_CATEGORIES
 from domain.training import TrainingDataset
@@ -23,84 +23,50 @@ def build_urls(category_group: dict[str, int]) -> list[tuple[str, str]]:
     return urls
 
 
-async def collect_jobs(jobs, llm) -> CollectResult:
-    seen: set[str] = set()
-    passed_jobs: list[JobView] = []
-    all_cnt = content_filter_cnt = exclude_stack_filter_cnt = 0
 
+async def collect_and_save(http_client, llm, db_manager):
+    jobs_to_ai_analysis = []
+    results = []
+    all_cnt = content_filter_cnt = exclude_stack_filter_cnt = 0
     for cat in ALL_CATEGORIES:
         urls = build_urls(cat)
         for feed_name, url in urls:
             jobs = await http_client.fetch_fl_jobs(url)
-
             for job in jobs:
                 all_cnt += 1
 
-                if job.external_id in seen:
-                    continue
-                seen.add(job.external_id)
-
-                basic = analyze_basic(job)
-                if basic.excluded_stack:
+                basic_analysis = analyze_basic(job)
+                if basic_analysis.excluded_stack:
                     exclude_stack_filter_cnt += 1
 
-                if not basic.content_keywords:
+                if not basic_analysis.content_keywords:
                     content_filter_cnt += 1
 
-                if basic.priority > JobPriority.HIDDEN:
-                    passed_jobs.append(
-                        JobView(job=job, basic=basic, feed_name=feed_name)
-                    )
+                if basic_analysis.priority > JobPriority.HIDDEN:
+                    if row := await db_manager.read(TrainingDataset, external_id=job.external_id):
+                        ai_analysis = AIAnalysis.from_db(row[0])
+                        if ai_analysis.priority > JobPriority.HIDDEN:
+                            results.append(JobView(job=job, basic=basic_analysis, ai=ai_analysis, feed_name=feed_name))
+                    else:
+                        jobs_to_ai_analysis.append(JobView(job=job, basic=basic_analysis, feed_name=feed_name))
 
-    if passed_jobs:
-        await llm.analyze_batch(passed_jobs)
-
-    passed_jobs.sort(key=lambda item: item.final_priority, reverse=True)
-
-    return CollectResult(
-        all_cnt=all_cnt,
-        passed_cnt=len(passed_jobs),
-        content_filter_cnt=content_filter_cnt,
-        exclude_stack_filter_cnt=exclude_stack_filter_cnt,
-        jobs=passed_jobs,
-    )
-
-async def save_analysis(result: CollectResult, db_manager):
-    for jv in result.jobs:
+    await llm.analyze_batch(jobs_to_ai_analysis)
+    for jv in jobs_to_ai_analysis:
         if not jv.ai:
             continue
-
-        row = {
-            "external_id": jv.job.external_id,
-            "title": jv.job.title,
-            "description": jv.job.description,
-            "tags_raw": ", ".join(jv.job.tags) if jv.job.tags else None,
-            "source": jv.feed_name,
-
-            # Ответы нейросети (из jv.ai)
-            "ai_priority": jv.ai.priority.value,
-            "ai_tech_tags": ", ".join(jv.ai.tech_tags) if jv.ai.tech_tags else None,
-            "ai_explanation": jv.ai.explanation,
-            "ai_confidence": jv.ai.confidence,
-
-            # Базовая линия (из jv.basic)
-            "basic_priority": jv.basic.priority.value
-        }
         try:
-            await db_manager.create(TrainingDataset, **row)
+            await db_manager.create(TrainingDataset, **jv.to_db())
         except AlreadyExistsError:
             pass
 
-
-# async def collect_and_save(http_client, llm, db_manager):
-#     total_jobs = []
-#     for cat in ALL_CATEGORIES:
-#         urls = build_urls(cat)
-#         for feed_name, url in urls:
-#             jobs = await http_client.fetch_fl_jobs(url)
-#             in_db = await db_manager.read(TrainingDataset, external_id=[job.external_id for job in jobs])
-#
-#     result = await collect_jobs(http_client, llm)
-#     await save_analysis(result, db_manager)
-#     return result
+    results += [job for job in jobs_to_ai_analysis if job.final_priority > JobPriority.HIDDEN]
+    results.sort(key=lambda job: job.final_priority, reverse=True)
+    result = CollectResult(
+        all_cnt=all_cnt,
+        passed_cnt=len(results),
+        content_filter_cnt=content_filter_cnt,
+        exclude_stack_filter_cnt=exclude_stack_filter_cnt,
+        jobs=results
+    )
+    return result
 

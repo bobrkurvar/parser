@@ -6,6 +6,7 @@ from collector import collect_and_save
 from adapters.db_provider import DbProvider
 from adapters.db import build_crud
 from core import conf
+from domain.training import TrainingDataset
 
 
 class AsyncBackend:
@@ -65,6 +66,11 @@ class AsyncBackend:
             return await collect_and_save(self.client, self.llm, self.db)
 
         self.run_task(task_wrapper(), callback)
+
+
+    def human_priority(self, order_id: int, mark: int | str, callback):
+        async def task_wrapper():
+            return await self.db.update(TrainingDataset, filters={"human_priority": int(mark)}, order_id=order_id)
 
 
     async def _shutdown_resources(self):

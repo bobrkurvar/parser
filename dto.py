@@ -34,10 +34,20 @@ class AIAnalysis:
     tech_tags: list[str]
     confidence: float
 
+    @classmethod
+    def from_db(cls, row: dict):
+        return cls(
+            priority=JobPriority(row["ai_priority"]),
+            explanation=row["ai_explanation"] or "",
+            confidence=row["ai_confidence"],
+            tech_tags=row["ai_tech_tags"].split(", ") if row["ai_tech_tags"] else []
+        )
+
+
 @dataclass
 class JobView:
-    job: FreelanceJob
     feed_name: str
+    job: FreelanceJob
     basic: BasicAnalysis
     ai: AIAnalysis | None = None
 
@@ -46,6 +56,21 @@ class JobView:
         if self.ai:
             return self.ai.priority
         return self.basic.priority
+
+    def to_db(self) -> dict:
+        return {
+            "external_id": self.job.external_id,
+            "title": self.job.title,
+            "description": self.job.description,
+            "tags_raw": ", ".join(self.job.tags) if self.job.tags else None,
+            "source": self.feed_name,
+
+            # Ответы нейросети (из jv.ai)
+            "ai_priority": self.ai.priority.value,
+            "ai_tech_tags": ", ".join(self.ai.tech_tags) if self.ai.tech_tags else None,
+            "ai_explanation": self.ai.explanation,
+            "ai_confidence": self.ai.confidence,
+        }
 
 
 
