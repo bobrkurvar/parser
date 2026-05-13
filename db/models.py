@@ -27,6 +27,8 @@ class TrainingDataset(Base):
     ai_explanation: Mapped[str | None] = mapped_column(Text)
     ai_confidence: Mapped[float] = mapped_column()
 
+    is_closed: Mapped[bool] = mapped_column(default=False)
+
     # Техническое поле
     created_at: Mapped[datetime] = mapped_column(default=datetime.now())
 
@@ -43,5 +45,6 @@ class TrainingDataset(Base):
             "ai_explanation": self.ai_explanation,
             "ai_confidence": self.ai_confidence,
             "human_priority": self.human_priority,
+            "is_closed": self.is_closed,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }

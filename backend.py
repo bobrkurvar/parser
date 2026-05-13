@@ -68,9 +68,10 @@ class AsyncBackend:
         self.run_task(task_wrapper(), callback)
 
 
-    def human_priority(self, order_id: int, mark: int | str, callback):
+    def human_priority(self, external_id: int, mark: int | str, is_closed, callback):
         async def task_wrapper():
-            return await self.db.update(TrainingDataset, filters={"human_priority": int(mark)}, order_id=order_id)
+            return await self.db.update(TrainingDataset, filters={"external_id": external_id}, human_priority = int(mark), is_closed=is_closed)
+        self.run_task(task_wrapper(), callback)
 
 
     async def _shutdown_resources(self):
@@ -95,29 +96,6 @@ class AsyncBackend:
                 await self.db_provider.engine.dispose()
             except Exception as e:
                 print(f"Ошибка при закрытии dbProvider: {e}")
-
-    # async def _shutdown_resources(self):
-    #     """Асинхронно закрывает все соединения внутри цикла."""
-    #     # 1. Закрываем HTTP клиент
-    #     if self.client:
-    #         try:
-    #             await self.client.close()
-    #         except Exception as e:
-    #             print(f"Ошибка при закрытии HttpClient: {e}")
-    #
-    #     # 2. Закрываем базу данных
-    #     # (в SQLAlchemy 2.0 async это обычно engine.dispose())
-    #     if self.db_provider:
-    #         try:
-    #             await self.client.close()
-    #         except Exception as e:
-    #             print(f"Ошибка при закрытии dbProvider: {e}")
-
-        # if self.llm:
-        #     try:
-        #         await self.llm.close()
-        #     except Exception as e:
-        #         print(f"Ошибка при закрытии GeminiAnalyzer: {e}")
 
     def stop(self):
         """Корректное завершение работы потока и ресурсов."""
