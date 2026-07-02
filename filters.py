@@ -2,7 +2,7 @@ from dto import FreelanceJob
 from keywords import CONTENT_KEYWORDS, EXCLUDED_STACK_PATTERNS
 import re
 import logging
-from dto import BasicAnalysis, JobPriority, AIAnalysis
+from dto import JobPriority
 
 log = logging.getLogger(__name__)
 
@@ -45,24 +45,35 @@ def find_excluded_stack(*parts: str) -> dict[str, list[str]]:
     return result
 
 
-
-def analyze_basic(job: FreelanceJob) -> BasicAnalysis:
-    content = find_content_keywords(job.title, job.description)
-    excluded_stack = find_excluded_stack(job.title, job.description)
-    priority, content_keywords, stack, reason = JobPriority.MEDIUM, [], {}, "Нет явных полезных слов, но категория подходит"
-    if content and not excluded_stack:
-        priority, content_keywords, stack, reason = JobPriority.HIGH, content, {}, "Есть полезные ключевые слова"
-    elif content and excluded_stack:
-        priority, content_keywords, stack, reason= JobPriority.LOW, content, excluded_stack, "Есть полезные слова, но найден чужой стек"
-    elif not content and excluded_stack:
-        priority, content_keywords, stack, reason = JobPriority.HIDDEN, [], excluded_stack, "Чужой стек без полезных сигналов"
-
-    return BasicAnalysis(
-        priority=priority,
-        content_keywords=content_keywords,
-        excluded_stack=stack,
-        reason=reason,
+def analyze_basic(job: FreelanceJob) -> bool:
+    content = find_content_keywords(
+        job.title,
+        job.description,
+    )
+    excluded_stack = find_excluded_stack(
+        job.title,
+        job.description,
     )
 
-# async def analyze_llm(jobs: list[FreelanceJob], llm) -> AIAnalysis:
-#     return await llm.analyze_batch(jobs)
+    if not content and excluded_stack:
+        return False
+
+    return True
+
+# def analyze_basic(job: FreelanceJob) -> BasicAnalysis:
+#     content = find_content_keywords(job.title, job.description)
+#     excluded_stack = find_excluded_stack(job.title, job.description)
+#     priority, content_keywords, stack, reason = JobPriority.MEDIUM, [], {}, "Нет явных полезных слов, но категория подходит"
+#     if content and not excluded_stack:
+#         priority, content_keywords, stack, reason = JobPriority.HIGH, content, {}, "Есть полезные ключевые слова"
+#     elif content and excluded_stack:
+#         priority, content_keywords, stack, reason= JobPriority.LOW, content, excluded_stack, "Есть полезные слова, но найден чужой стек"
+#     elif not content and excluded_stack:
+#         priority, content_keywords, stack, reason = JobPriority.HIDDEN, [], excluded_stack, "Чужой стек без полезных сигналов"
+#
+#     return BasicAnalysis(
+#         priority=priority,
+#         content_keywords=content_keywords,
+#         excluded_stack=stack,
+#         reason=reason,
+#     )

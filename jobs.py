@@ -31,20 +31,20 @@ async def fetch_jobs(http_client):
                 yield feed_name, job
 
 
-def add_basic_analysis(
-    job: FreelanceJob,
-    feed_name: str,
-) -> JobView | None:
-    basic_analysis = analyze_basic(job)
-
-    if basic_analysis.priority <= JobPriority.HIDDEN:
-        return None
-
-    return JobView(
-        job=job,
-        basic=basic_analysis,
-        feed_name=feed_name,
-    )
+# def add_basic_analysis(
+#     job: FreelanceJob,
+#     feed_name: str,
+# ) -> JobView | None:
+#     basic_analysis = analyze_basic(job)
+#
+#     if basic_analysis.priority <= JobPriority.HIDDEN:
+#         return None
+#
+#     return JobView(
+#         job=job,
+#         basic=basic_analysis,
+#         feed_name=feed_name,
+#     )
 
 
 async def save_analyzed_jobs(db_manager, jobs: list[JobView]):
@@ -68,11 +68,10 @@ async def collect_pipeline(http_client, llm, db_manager):
         except NotFoundError:
             html_page = await http_client.fetch(job.url)
             page_data = parse_fl_job_page(html_page)
-            job.description = page_data.description
-
-            if job_view := add_basic_analysis(job=job, feed_name=feed_name):
-                job_view.page_data = page_data
-                pending_analyze.append(job_view)
+            job.description, job.feed_name = page_data.description, feed_name
+            #if job_view := add_basic_analysis(job=job, feed_name=feed_name):
+            if analyze_basic(job):
+                pending_analyze.append(JobView(job=job, page_data=page_data))
 
     await llm.analyze_batch(pending_analyze)
     await save_analyzed_jobs(db_manager=db_manager, jobs=pending_analyze)

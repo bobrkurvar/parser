@@ -1,33 +1,44 @@
 import dto
 from db import models
+from dto import JobPriority
 
 
 def job_view_to_orm(obj: dto.JobView):
     return models.JobView(
+        url=obj.job.url,
         external_id=obj.job.external_id,
         title=obj.job.title,
         description=obj.job.description,
-        tags_raw=", ".join(obj.job.tags) if obj.job.tags else None,
-        source=obj.feed_name,
+        tags_raw=",".join(obj.job.tags) if obj.job.tags else None,
+        source=obj.job.feed_name,
         ai_priority=obj.ai.priority.value,
-        ai_tech_tags=", ".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
+        ai_tech_tags=",".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
         ai_explanation=obj.ai.explanation,
         ai_confidence=obj.ai.confidence,
     )
 
 
-# def job_view_to_dto(obj: models.JobView):
-#     return dto.JobView(
-#         external_id=obj.job.external_id,
-#         title=obj.job.title,
-#         description=obj.job.description,
-#         tags_raw=", ".join(obj.job.tags) if obj.job.tags else None,
-#         source=obj.feed_name,
-#         ai_priority=obj.ai.priority.value,
-#         ai_tech_tags=", ".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
-#         ai_explanation=obj.ai.explanation,
-#         ai_confidence=obj.ai.confidence,
-#     )
+def job_view_to_dto(obj: models.JobView):
+    job = dto.FreelanceJob(
+        title=obj.title,
+        description=obj.description,
+        source=obj.source,
+        external_id=obj.external_id,
+        url=obj.url,
+        tags=obj.tags_raw.split(",") if obj.tags_raw else [],
+        feed_name=obj.feed_name
+    )
+    ai = dto.AIAnalysis(
+        priority=JobPriority(obj.ai_priority),
+        confidence=obj.ai_confidence,
+        explanation=obj.ai_explanation,
+        tech_tags=obj.ai_tech_tags.split(",") if obj.ai_tech_tags else []
+    )
+    return dto.JobView(
+        job=job,
+        human_priority=JobPriority(obj.human_priority),
+        ai=ai
+    )
 
 #def active_job_view_to_dto(obj: models.ActiveJobs):
 
@@ -60,6 +71,7 @@ class MapperRegistry:
         if not func:
             raise RuntimeError(f"Маппер в Домен не найден для {orm_cls}")
         return func(orm_obj)
+
 
 registry = MapperRegistry()
 registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=job_view_to_orm, to_dto=lambda: None)
