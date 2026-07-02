@@ -40,21 +40,6 @@ class HttpClient:
             "Accept": "application/rss+xml, application/xml, text/xml, */*",
             "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
         }
-        # self.headers = {
-        #     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        #     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/rss+xml;q=0.8,*/*;q=0.7",
-        #     "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        #     "Accept-Encoding": "gzip, deflate, br",
-        #     "Connection": "keep-alive",
-        #     "Upgrade-Insecure-Requests": "1",
-        #     "Sec-Fetch-Dest": "document",
-        #     "Sec-Fetch-Mode": "navigate",
-        #     "Sec-Fetch-Site": "none",
-        #     "Sec-Fetch-User": "?1",
-        #     "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        #     "Sec-Ch-Ua-Mobile": "?0",
-        #     "Sec-Ch-Ua-Platform": '"Windows"',
-        # }
         self._client = AsyncClient(
             headers=self.headers,
             timeout=20,
@@ -66,11 +51,16 @@ class HttpClient:
             raise RuntimeError("HTTP client is not initialized")
         return self._client
 
-    async def fetch_fl_jobs(self, url: str) -> list[FreelanceJob]:
+    async def fetch(self, url: str) -> str:
         resp = await self.client.get(url)
         resp.raise_for_status()
-        xml_text = resp.text
-        return parse_fl_rss(xml_text)
+        return resp.text
+
+    # async def fetch_fl_jobs(self, url: str) -> list[FreelanceJob]:
+    #     resp = await self.client.get(url)
+    #     resp.raise_for_status()
+    #     xml_text = resp.text
+    #     return parse_fl_rss(xml_text)
 
     async def close(self):
         if self._client:

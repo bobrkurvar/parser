@@ -50,6 +50,7 @@ class JobView:
     feed_name: str
     job: FreelanceJob
     basic: BasicAnalysis
+    page_data: "FlJobPage | None" = None
     ai: AIAnalysis | None = None
 
     @property
@@ -60,6 +61,7 @@ class JobView:
 
     def is_hidden(self):
         return self.final_priority == JobPriority.HIDDEN
+
 
 
 
@@ -81,4 +83,8 @@ class ActiveJob:
 @dataclass(slots=True)
 class FlJobPage:
     description: str
-    is_closed: bool
+    budget_text: str | None
+    responses_count: int | None
+    response_price_min: int | None
+    response_price_max: int | None
+    is_closed: bool = False

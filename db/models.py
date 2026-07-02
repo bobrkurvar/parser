@@ -8,8 +8,8 @@ class Base(AsyncAttrs, DeclarativeBase):
     pass
 
 
-class TrainingDataset(Base):
-    __tablename__ = "training_dataset"
+class JobView(Base):
+    __tablename__ = "job_data"
     id: Mapped[int] = mapped_column(primary_key=True)
     external_id: Mapped[str] = mapped_column(unique=True, index=True)
     human_priority: Mapped[int | None] = mapped_column(default=None)

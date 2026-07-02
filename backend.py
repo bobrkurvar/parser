@@ -2,7 +2,7 @@ import asyncio
 import threading
 from adapters.web import HttpClient
 from adapters.llm import GeminiAnalyzer
-from collector import collect_and_save
+from jobs import collect_and_save
 from adapters.db_provider import DbProvider
 from core import conf
 from adapters.uow import UnitOfWork
