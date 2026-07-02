@@ -49,9 +49,8 @@ class AIAnalysis:
 
 @dataclass
 class JobView:
-    #feed_name: str
     job: FreelanceJob
-    #basic: BasicAnalysis
+    id: int | None = None
     human_priority: JobPriority | None = None
     page_data: "FlJobPage | None" = None
     ai: AIAnalysis | None = None
@@ -80,13 +79,14 @@ class CollectResult:
 
 @dataclass
 class ActiveJob:
-    id: int
-    job_data: JobView | None = None
+    job_data: JobView
 
 
 # Динамические данные, которые я получаю после парса страницы
 @dataclass(slots=True)
 class FlJobPage:
+    budget_text: str | None
+    description: str
     responses_count: int | None
     response_price_min: int | None
     response_price_max: int | None

@@ -1,9 +1,9 @@
 import dto
 from db import models
-from dto import JobPriority
+from sqlalchemy import inspect
 
 
-def job_view_to_orm(obj: dto.JobView):
+def map_job_view_to_orm(obj: dto.JobView):
     return models.JobView(
         url=obj.job.url,
         external_id=obj.job.external_id,
@@ -18,7 +18,7 @@ def job_view_to_orm(obj: dto.JobView):
     )
 
 
-def job_view_to_dto(obj: models.JobView):
+def map_job_view_to_dto(obj: models.JobView):
     job = dto.FreelanceJob(
         title=obj.title,
         description=obj.description,
@@ -29,20 +29,33 @@ def job_view_to_dto(obj: models.JobView):
         feed_name=obj.feed_name
     )
     ai = dto.AIAnalysis(
-        priority=JobPriority(obj.ai_priority),
+        priority=dto.JobPriority(obj.ai_priority),
         confidence=obj.ai_confidence,
         explanation=obj.ai_explanation,
         tech_tags=obj.ai_tech_tags.split(",") if obj.ai_tech_tags else []
     )
     return dto.JobView(
         job=job,
-        human_priority=JobPriority(obj.human_priority),
+        human_priority=(
+            dto.JobPriority(obj.human_priority)
+            if obj.human_priority is not None else None
+        ),
         ai=ai
     )
 
-#def active_job_view_to_dto(obj: models.ActiveJobs):
+
+def map_active_job_view_to_dto(obj: models.ActiveJob):
+    if "job_data" not in inspect(obj).unloaded:
+        # учитывая что в модели стоит relationship(lazy="joined") связь автоматическая
+        return map_job_view_to_dto(obj.job_data)
+    else:
+        raise ValueError("Не загружена информация")
 
 
+def map_active_job_view_to_orm(obj: dto.ActiveJob):
+    return models.ActiveJob(
+        job=map_job_view_to_orm(obj.job_data)
+    )
 
 class MapperRegistry:
     def __init__(self):
@@ -74,5 +87,5 @@ class MapperRegistry:
 
 
 registry = MapperRegistry()
-registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=job_view_to_orm, to_dto=lambda: None)
-#registry.register(dto_cls=dto.ActiveJob, orm_model=models.ActiveJobs, to_orm=lambda: None, to_dto=active_job_view_to_dto)
+registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=map_job_view_to_orm, to_dto=map_active_job_view_to_dto)
+registry.register(dto_cls=dto.ActiveJob, orm_model=models.ActiveJob, to_orm=map_active_job_view_to_orm, to_dto=map_active_job_view_to_dto)

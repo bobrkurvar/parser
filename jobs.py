@@ -52,7 +52,10 @@ async def save_analyzed_jobs(db_manager, jobs: list[JobView]):
         if jv.ai is None:
             continue
         try:
-            await db_manager.create(jv)
+            #await db_manager.create(jv)
+            await db_manager.create(
+                ActiveJob(job_data=jv)
+            )
         except AlreadyExistsError:
             pass
 
@@ -68,10 +71,10 @@ async def collect_pipeline(http_client, llm, db_manager):
         except NotFoundError:
             html_page = await http_client.fetch(job.url)
             page_data = parse_fl_job_page(html_page)
-            job.description, job.feed_name = page_data.description, feed_name
-            #if job_view := add_basic_analysis(job=job, feed_name=feed_name):
-            if analyze_basic(job):
-                pending_analyze.append(JobView(job=job, page_data=page_data))
+            if not page_data.is_closed:
+                job.description, job.feed_name = page_data.description, feed_name
+                if analyze_basic(job):
+                    pending_analyze.append(JobView(job=job, page_data=page_data))
 
     await llm.analyze_batch(pending_analyze)
     await save_analyzed_jobs(db_manager=db_manager, jobs=pending_analyze)

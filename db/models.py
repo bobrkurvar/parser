@@ -30,7 +30,16 @@ class JobView(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.now())
 
 
-class ActiveJobs(Base):
+class ActiveJob(Base):
     __tablename__ = "active_jobs"
-    id: Mapped[int] = mapped_column(ForeignKey("training_dataset.id"), primary_key=True)
-    job: Mapped[JobView] = relationship("JobView")
+
+    id: Mapped[int] = mapped_column(
+        ForeignKey("job_data.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    job_data: Mapped[JobView] = relationship(
+        "JobView",
+        cascade="save-update",
+        lazy="joined", # по умолчанию подгрузит сам
+    )
