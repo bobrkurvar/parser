@@ -4,9 +4,10 @@ from adapters.web import HttpClient
 from adapters.llm import GeminiAnalyzer
 from collector import collect_and_save
 from adapters.db_provider import DbProvider
-from adapters.db import build_crud
 from core import conf
-from domain.training import TrainingDataset
+from adapters.uow import UnitOfWork
+from db.mapper import registry
+from dto import TrainingDataset
 
 
 class AsyncBackend:
@@ -16,6 +17,7 @@ class AsyncBackend:
         self.llm = None
         self.db_provider = None
         self._db = None
+        self._uow = None
         self.is_ready = threading.Event()  # Сигнал готовности зависимостей
 
         # Запускаем поток-воркер
@@ -24,7 +26,8 @@ class AsyncBackend:
 
     @property
     def db(self):
-        return build_crud(self.db_provider.session_factory)
+        self._uow = UnitOfWork(registry=registry, provider=self.db_provider)
+        return self._uow.db
 
     def _run_event_loop(self):
         """Метод выполняется в отдельном потоке."""
@@ -70,7 +73,7 @@ class AsyncBackend:
 
     def human_priority(self, external_id: int, mark: int | str, is_closed, callback):
         async def task_wrapper():
-            return await self.db.update(TrainingDataset, filters={"external_id": external_id}, human_priority = int(mark), is_closed=is_closed)
+            return await self.db.update(TrainingDataset, filters={"external_id": external_id}, human_priority=int(mark), is_closed=is_closed)
         self.run_task(task_wrapper(), callback)
 
 

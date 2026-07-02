@@ -27,6 +27,7 @@ class BasicAnalysis:
     excluded_stack: dict[str, list[str]]
     reason: str
 
+
 @dataclass
 class AIAnalysis:
     priority: JobPriority
@@ -57,20 +58,8 @@ class JobView:
             return self.ai.priority
         return self.basic.priority
 
-    def to_db(self) -> dict:
-        return {
-            "external_id": self.job.external_id,
-            "title": self.job.title,
-            "description": self.job.description,
-            "tags_raw": ", ".join(self.job.tags) if self.job.tags else None,
-            "source": self.feed_name,
-
-            # Ответы нейросети (из jv.ai)
-            "ai_priority": self.ai.priority.value,
-            "ai_tech_tags": ", ".join(self.ai.tech_tags) if self.ai.tech_tags else None,
-            "ai_explanation": self.ai.explanation,
-            "ai_confidence": self.ai.confidence,
-        }
+    def is_hidden(self):
+        return self.final_priority == JobPriority.HIDDEN
 
 
 
@@ -83,3 +72,13 @@ class CollectResult:
     jobs: list[JobView]
 
 
+@dataclass
+class ActiveJob:
+    id: int
+    url: str
+
+
+@dataclass(slots=True)
+class FlJobPage:
+    description: str
+    is_closed: bool

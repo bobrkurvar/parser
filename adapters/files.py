@@ -1,9 +1,8 @@
-from core import conf
 
 
 class KeyProvider:
     def __init__(self):
-        self.filepath = conf.ai_keys_path
+        self.filepath = "keys.txt"
         self._keys = []
         self._load_keys()
 

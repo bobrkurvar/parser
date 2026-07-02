@@ -9,15 +9,12 @@ import textwrap
 log = logging.getLogger(__name__)
 
 
-# Схема для Gemini
 class GeminiSchema(BaseModel):
-    origin_id: str = Field(description="Уникальный ID заказа из входного текста")
-    is_relevant: bool = Field(description="Подходит ли заказ под веб-разработку?")
-    # Мы просим число, которое соответствует твоему JobPriority
-    priority_value: int = Field(description="0 - HIDDEN, 1 - LOW, 2 - MEDIUM, 3 - HIGH")
-    tech_tags: list[str] = Field(description="Стек технологий (Python, FastAPI и т.д.)")
-    explanation: str = Field(description="Почему выбран такой приоритет?")
-    confidence: float = Field(description="Уверенность в ответе от 0.0 до 1.0")
+    batch_index: int = Field(description="Номер заказа из поля ID во входной пачке.")
+    priority_value: int = Field(description="Итоговый приоритет заказа: 0 — HIDDEN, 1 — LOW, 2 — MEDIUM, 3 — HIGH.")
+    tech_tags: list[str] = Field(description="Стек технологий и направления: Python, FastAPI, API, Telegram и т.д.")
+    explanation: str = Field(description="Подробно объясни выбор приоритета. Строго на русском языке.")
+    confidence: float = Field(description="Уверенность в оценке от 0.0 до 1.0.")
 
 
 class GeminiAnalyzer:
@@ -61,64 +58,151 @@ class GeminiAnalyzer:
         self.api_key = self.key_manager.get_key()
         self.client = genai.Client(api_key=self.api_key)
 
-    async def analyze_batch(self, jobs_to_analyze: list[JobView], batch_size: int = 15):
 
+    def _build_batch_text(self, chunk: list[JobView]) -> tuple[dict[int, JobView], str]:
+        jobs_by_index: dict[int, JobView] = {}
+        batch_text_parts: list[str] = []
+
+        for index, job_view in enumerate(chunk):
+            jobs_by_index[index] = job_view
+
+            batch_text_parts.append(
+                f"ID: {index}\n"
+                f"Заголовок: {job_view.job.title}\n"
+                f"Описание: {job_view.job.description}"
+            )
+        return jobs_by_index, "\n---\n".join(batch_text_parts)
+
+
+    async def _request_batch(self, batch_text: str):
+        try:
+            response = await self.client.aio.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=(
+                    "Проанализируй следующие заказы "
+                    "и верни массив JSON:\n"
+                    f"{batch_text}"
+                ),
+                config={
+                    "system_instruction": self.system_instruction,
+                    "response_mime_type": "application/json",
+                    "response_schema": list[GeminiSchema],
+                },
+            )
+
+            if not response.parsed:
+                raise RuntimeError("Gemini вернул пустой ответ или сработал фильтр.")
+
+            return response.parsed
+
+        except Exception:
+            log.exception("Ошибка Gemini")
+            self._swap_api_key()
+            await asyncio.sleep(2)
+
+        return None
+
+
+    async def analyze_batch(
+        self,
+        jobs_to_analyze: list[JobView],
+        batch_size: int = 15,
+    ):
         chunks = [
-            jobs_to_analyze[i: i + batch_size]
+            jobs_to_analyze[i:i + batch_size]
             for i in range(0, len(jobs_to_analyze), batch_size)
         ]
 
         chunks = chunks[:self.limit]
 
         for chunk in chunks:
-            temp_jobs_map = {}
-            batch_text_parts = []
+            jobs_by_index, batch_text = self._build_batch_text(chunk)
 
-            for index, jv in enumerate(chunk):
-                temp_id = str(index)  # Это и есть наш идеальный короткий origin_id
-                temp_jobs_map[temp_id] = jv
+            ai_results = await self._request_batch(batch_text)
 
-                # В текст для ИИ подставляем короткий номер, а не длинный URL
-                batch_text_parts.append(
-                    f"ID: {temp_id}\nЗаголовок: {jv.job.title}\nОписание: {jv.job.description}"
-                )
+            if ai_results is None:
+                log.error("Не удалось обработать пачку из %s заказов.",len(chunk))
+                continue
 
-            batch_text = "\n---\n".join(batch_text_parts)
+            for ai_data in ai_results:
+                job_view = jobs_by_index.get(ai_data.batch_index)
 
-            try:
-                response = await self.client.aio.models.generate_content(
-                    model="gemini-2.5-flash-lite",
-                    contents=f"Проанализируй следующие заказы и верни массив JSON:\n{batch_text}",
-                    config={
-                        'system_instruction': self.system_instruction,
-                        'response_mime_type': 'application/json',
-                        'response_schema': list[GeminiSchema],
-                    }
-                )
-
-                if not response.parsed:
-                    log.warning("Нейросеть вернула пустой ответ или сработал фильтр! Пропускаем пачку.")
+                if job_view is None:
+                    log.warning("Gemini вернул несуществующий batch_index: %s",ai_data.batch_index,)
                     continue
 
-                for ai_data in response.parsed:
-                    # 2. Достаем объект обратно из словаря по короткому номеру
-                    job_view = temp_jobs_map.get(ai_data.origin_id)
+                priority_value = max(
+                    JobPriority.HIDDEN,
+                    min(ai_data.priority_value, JobPriority.HIGH),
+                )
 
-                    if job_view:
-                        # Если заказ найден, обогащаем его данными от ИИ
-                        final_pri = ai_data.priority_value if ai_data.is_relevant else 0
-                        final_pri = max(0, min(final_pri, 3))
-
-                        job_view.ai = AIAnalysis(
-                            priority=JobPriority(final_pri),
-                            explanation=ai_data.explanation,
-                            tech_tags=ai_data.tech_tags,
-                            confidence=ai_data.confidence
-                        )
-                    else:
-                        log.warning(f"ИИ вернул несуществующий номер: {ai_data.origin_id}")
-            except Exception as e:
-                log.exception(f"Ошибка при обработке пачки: {e}")
-                self._swap_api_key()
+                job_view.ai = AIAnalysis(
+                    priority=JobPriority(priority_value),
+                    explanation=ai_data.explanation,
+                    tech_tags=ai_data.tech_tags,
+                    confidence=ai_data.confidence,
+                )
 
             await asyncio.sleep(2)
+
+    # async def analyze_batch(self, jobs_to_analyze: list[JobView], batch_size: int = 15):
+    #
+    #     chunks = [
+    #         jobs_to_analyze[i: i + batch_size]
+    #         for i in range(0, len(jobs_to_analyze), batch_size)
+    #     ]
+    #
+    #     chunks = chunks[:self.limit]
+    #
+    #     for chunk in chunks:
+    #         temp_jobs_map = {}
+    #         batch_text_parts = []
+    #
+    #         for index, jv in enumerate(chunk):
+    #             temp_id = str(index)  # Это и есть наш идеальный короткий origin_id
+    #             temp_jobs_map[temp_id] = jv
+    #
+    #             # В текст для ИИ подставляем короткий номер, а не длинный URL
+    #             batch_text_parts.append(
+    #                 f"ID: {temp_id}\nЗаголовок: {jv.job.title}\nОписание: {jv.job.description}"
+    #             )
+    #
+    #         batch_text = "\n---\n".join(batch_text_parts)
+    #
+    #         try:
+    #             response = await self.client.aio.models.generate_content(
+    #                 model="gemini-2.5-flash-lite",
+    #                 contents=f"Проанализируй следующие заказы и верни массив JSON:\n{batch_text}",
+    #                 config={
+    #                     'system_instruction': self.system_instruction,
+    #                     'response_mime_type': 'application/json',
+    #                     'response_schema': list[GeminiSchema],
+    #                 }
+    #             )
+    #
+    #             if not response.parsed:
+    #                 log.warning("Нейросеть вернула пустой ответ или сработал фильтр! Пропускаем пачку.")
+    #                 continue
+    #
+    #             for ai_data in response.parsed:
+    #                 # 2. Достаем объект обратно из словаря по короткому номеру
+    #                 job_view = temp_jobs_map.get(ai_data.origin_id)
+    #
+    #                 if job_view:
+    #                     # Если заказ найден, обогащаем его данными от ИИ
+    #                     final_pri = ai_data.priority_value if ai_data.is_relevant else 0
+    #                     final_pri = max(0, min(final_pri, 3))
+    #
+    #                     job_view.ai = AIAnalysis(
+    #                         priority=JobPriority(final_pri),
+    #                         explanation=ai_data.explanation,
+    #                         tech_tags=ai_data.tech_tags,
+    #                         confidence=ai_data.confidence
+    #                     )
+    #                 else:
+    #                     log.warning(f"ИИ вернул несуществующий номер: {ai_data.origin_id}")
+    #         except Exception as e:
+    #             log.exception(f"Ошибка при обработке пачки: {e}")
+    #             self._swap_api_key()
+    #
+    #         await asyncio.sleep(2)
