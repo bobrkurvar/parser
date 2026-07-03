@@ -2,12 +2,12 @@ import asyncio
 import threading
 from adapters.web import HttpClient
 from adapters.llm import GeminiAnalyzer
-from jobs import collect_and_save
-from adapters.db_provider import DbProvider
-from core import conf
 from adapters.uow import UnitOfWork
 from db.mapper import registry
-from dto import TrainingDataset
+from jobs import load_jobs, read_active_jobs
+from core import conf
+from adapters.db_provider import DbProvider
+from dto import JobView
 
 
 class AsyncBackend:
@@ -15,19 +15,18 @@ class AsyncBackend:
         self.loop = asyncio.new_event_loop()
         self.client = None
         self.llm = None
-        self.db_provider = None
-        self._db = None
-        self._uow = None
+        self._db_provider = None
+        self.uow = None
         self.is_ready = threading.Event()  # Сигнал готовности зависимостей
 
         # Запускаем поток-воркер
         self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
         self.thread.start()
 
-    @property
-    def db(self):
-        self._uow = UnitOfWork(registry=registry, provider=self.db_provider)
-        return self._uow.db
+    # @property
+    # def db(self):
+    #     self._uow = UnitOfWork(registry=registry, provider=self.db_provider)
+    #     return self._uow.db
 
     def _run_event_loop(self):
         """Метод выполняется в отдельном потоке."""
@@ -36,7 +35,8 @@ class AsyncBackend:
         # Инициализируем зависимости ВНУТРИ цикла
         self.client = HttpClient()
         self.llm = GeminiAnalyzer()
-        self.db_provider = DbProvider(url = conf.db_url)
+        self._db_provider = DbProvider(url=conf.db_url)
+        self.uow = UnitOfWork(registry=registry, provider=self._db_provider)
 
         # Сообщаем основному потоку, что мы готовы
         self.is_ready.set()
@@ -64,16 +64,28 @@ class AsyncBackend:
         future.add_done_callback(done_callback)
 
 
-    def collect_and_save(self, callback):
+    def load_jobs(self, callback):
         async def task_wrapper():
-            return await collect_and_save(self.client, self.llm, self.db)
+            return await load_jobs(http_client=self.client, llm=self.llm, uow=self.uow)
 
         self.run_task(task_wrapper(), callback)
 
 
-    def human_priority(self, external_id: int, mark: int | str, is_closed, callback):
+    def refresh_active_jobs(self, callback) -> None:
+        """
+        Только активные вакансии из БД:
+        без RSS и без Gemini.
+        """
         async def task_wrapper():
-            return await self.db.update(TrainingDataset, filters={"external_id": external_id}, human_priority=int(mark), is_closed=is_closed)
+            return await read_active_jobs(http_client=self.client, uow=self.uow)
+
+        self.run_task(task_wrapper(), callback)
+
+
+    def human_priority(self, external_id: int, mark: int | str, callback):
+        async def task_wrapper():
+            async with self.uow:
+                return await self.uow.db.update(JobView, filters={"external_id": external_id}, human_priority=int(mark))
         self.run_task(task_wrapper(), callback)
 
 
@@ -93,10 +105,10 @@ class AsyncBackend:
             await self.client.close()
 
         # 3. Закрываем БД (ИСПРАВЛЕНА ТВОЯ ОПЕЧАТКА: было self.client.close())
-        if self.db_provider:
+        if self._db_provider:
             try:
                 # Убедись, что в DbProvider есть асинхронный метод close/dispose
-                await self.db_provider.engine.dispose()
+                await self._db_provider.engine.dispose()
             except Exception as e:
                 print(f"Ошибка при закрытии dbProvider: {e}")
 

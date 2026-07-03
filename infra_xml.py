@@ -12,18 +12,38 @@ def clean_html(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+PROJECT_ID_PATTERN = re.compile(r"/projects/(\d+)/")
 
-def parse_fl_rss(xml_text: str) -> list[FreelanceJob]:
+
+def extract_fl_project_id(url: str) -> int | None:
+    match = PROJECT_ID_PATTERN.search(url)
+    return int(match.group(1)) if match else None
+
+
+def parse_fl_rss(
+    xml_text: str,
+    feed_name: str,
+) -> list[FreelanceJob]:
     root = ET.fromstring(xml_text)
 
     jobs: list[FreelanceJob] = []
 
     for item in root.findall(".//item"):
         title = clean_html(item.findtext("title", default=""))
-        description = clean_html(item.findtext("description", default=""))
+        description = clean_html(
+            item.findtext("description", default="")
+        )
         link = item.findtext("link", default="").strip()
-        guid = item.findtext("guid", default="").strip()
         pub_date = item.findtext("pubDate", default="").strip()
+
+        external_id = extract_fl_project_id(link)
+
+        if external_id is None:
+            log.warning(
+                "Не удалось извлечь ID проекта из URL: %s",
+                link,
+            )
+            continue
 
         categories = [
             clean_html(category.text or "")
@@ -33,13 +53,15 @@ def parse_fl_rss(xml_text: str) -> list[FreelanceJob]:
         jobs.append(
             FreelanceJob(
                 source="fl.ru",
-                external_id=guid or link,
+                external_id=external_id,
                 title=title,
                 description=description,
                 url=link,
                 tags=categories,
                 published_at=pub_date or None,
+                feed_name=feed_name,
             )
         )
-    log.debug(f"Всего заказов: {len(jobs)}")
+
+    log.debug("Всего заказов: %d", len(jobs))
     return jobs

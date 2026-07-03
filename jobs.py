@@ -26,7 +26,7 @@ async def fetch_jobs(http_client):
         urls = build_urls(cat)
         for feed_name, url in urls:
             raw_jobs = await http_client.fetch(url)
-            jobs = parse_fl_rss(raw_jobs)
+            jobs = parse_fl_rss(raw_jobs, feed_name=feed_name)
             for job in jobs:
                 yield feed_name, job
 
@@ -47,54 +47,58 @@ async def fetch_jobs(http_client):
 #     )
 
 
-async def save_analyzed_jobs(db_manager, jobs: list[JobView]):
-    for jv in jobs:
-        if jv.ai is None:
-            continue
-        try:
-            #await db_manager.create(jv)
-            await db_manager.create(
-                ActiveJob(job_data=jv)
-            )
-        except AlreadyExistsError:
-            pass
+async def save_analyzed_jobs(uow, jobs: list[JobView]) -> None:
+    async with uow:
+        for job_view in jobs:
+            if job_view.ai is None:
+                continue
+            try:
+                async with uow.savepoint():
+                    await uow.db.create(
+                        ActiveJob(job_data=job_view),
+                    )
+            except AlreadyExistsError:
+                pass
 
 
-async def collect_pipeline(http_client, llm, db_manager) -> dict[str, FlJobPage]:
+async def collect_pipeline(http_client, llm, uow) -> dict[int, FlJobPage]:
     seen_external_ids, pending_analyze, page_cache = set(), [], {}
-    async for feed_name, job in fetch_jobs(http_client):
-        if job.external_id in seen_external_ids:
-            continue
-        seen_external_ids.add(job.external_id)
-        try:
-            await db_manager.read_one(JobView, external_id=job.external_id, with_raise=True)
-        except NotFoundError:
-            html_page = await http_client.fetch(job.url)
-            page_data = parse_fl_job_page(html_page)
-            if not page_data.is_closed:
-                job.description, job.feed_name, job.budget_text = page_data.description, feed_name, page_data.budget_text
-                page_cache[job.external_id] = page_data
-                if analyze_basic(job):
-                    pending_analyze.append(JobView(job=job, page_data=page_data))
+    async with uow:
+        async for feed_name, job in fetch_jobs(http_client):
+            if job.external_id in seen_external_ids:
+                continue
+            seen_external_ids.add(job.external_id)
+            try:
+                async with uow.savepoint():
+                    await uow.db.read_one(JobView, external_id=job.external_id, with_raise=True)
+            except NotFoundError:
+                html_page = await http_client.fetch(job.url)
+                page_data = parse_fl_job_page(html_page)
+                if not page_data.is_closed:
+                    job.description, job.feed_name, job.budget_text = page_data.description, feed_name, page_data.budget_text
+                    page_cache[job.external_id] = page_data
+                    if analyze_basic(job):
+                        pending_analyze.append(JobView(job=job, page_data=page_data))
 
     await llm.analyze_batch(pending_analyze)
-    await save_analyzed_jobs(db_manager=db_manager, jobs=pending_analyze)
+    await save_analyzed_jobs(uow=uow, jobs=pending_analyze)
     return page_cache
 
 
 async def read_active_jobs(
     http_client,
-    db_manager,
-    page_cache: dict[str, FlJobPage] | None = None,
+    uow,
+    page_cache: dict[int, FlJobPage] | None = None,
 ) -> list[JobView]:
     page_cache = page_cache or {}
 
     # job_data уже подгружается через lazy="joined"
-    active_jobs = await db_manager.read(ActiveJob)
+    async with uow:
+        active_jobs = await uow.db.read(ActiveJob)
     valid_jobs: list[JobView] = []
 
-    for active_job in active_jobs:
-        job_view = active_job.job_data
+    for job_view in active_jobs:
+        #job_view = active_job.job_data
         external_id = job_view.job.external_id
         page_data = page_cache.get(external_id)
         if page_data is None:
@@ -110,15 +114,15 @@ async def read_active_jobs(
     return valid_jobs
 
 
-async def load_jobs(http_client, llm, db_manager,) -> list[JobView]:
+async def load_jobs(http_client, llm, uow) -> list[JobView]:
     page_cache = await collect_pipeline(
         http_client=http_client,
         llm=llm,
-        db_manager=db_manager,
+        uow=uow,
     )
 
     return await read_active_jobs(
         http_client=http_client,
-        db_manager=db_manager,
+        uow=uow,
         page_cache=page_cache
     )

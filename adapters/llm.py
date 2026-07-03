@@ -77,7 +77,7 @@ class GeminiAnalyzer:
     async def _request_batch(self, batch_text: str):
         try:
             response = await self.client.aio.models.generate_content(
-                model="gemini-2.5-flash-lite",
+                model="gemini-2.5-flash",
                 contents=(
                     "Проанализируй следующие заказы "
                     "и верни массив JSON:\n"

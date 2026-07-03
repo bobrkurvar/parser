@@ -13,7 +13,7 @@ class JobPriority(IntEnum):
 class FreelanceJob:
     feed_name: str
     source: str
-    external_id: str
+    external_id: int
     title: str
     description: str
     url: str

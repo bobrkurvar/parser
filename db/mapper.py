@@ -15,6 +15,7 @@ def map_job_view_to_orm(obj: dto.JobView):
         ai_tech_tags=",".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
         ai_explanation=obj.ai.explanation,
         ai_confidence=obj.ai.confidence,
+        feed_name=obj.job.feed_name
     )
 
 
@@ -44,7 +45,7 @@ def map_job_view_to_dto(obj: models.JobView):
     )
 
 
-def map_active_job_view_to_dto(obj: models.ActiveJob):
+def map_active_job_view_to_dto(obj: models.ActiveJob) -> dto.JobView:
     if "job_data" not in inspect(obj).unloaded:
         # учитывая что в модели стоит relationship(lazy="joined") связь автоматическая
         return map_job_view_to_dto(obj.job_data)
@@ -54,19 +55,19 @@ def map_active_job_view_to_dto(obj: models.ActiveJob):
 
 def map_active_job_view_to_orm(obj: dto.ActiveJob):
     return models.ActiveJob(
-        job=map_job_view_to_orm(obj.job_data)
+        job_data=map_job_view_to_orm(obj.job_data)
     )
 
 class MapperRegistry:
     def __init__(self):
         self._models = {}  # domain_cls -> orm_model
         self._to_orm_funcs = {}  # domain_cls -> func
-        self._to_domain_funcs = {}  # orm_model -> func (Внимание: ключ - ORM класс!)
+        self._to_dto_funcs = {}  # orm_model -> func (Внимание: ключ - ORM класс!)
 
     def register(self, dto_cls, orm_model, to_orm, to_dto):
         self._models[dto_cls] = orm_model
         self._to_orm_funcs[dto_cls] = to_orm
-        self._to_domain_funcs[orm_model] = to_dto
+        self._to_dto_funcs[orm_model] = to_dto
 
     def get_model(self, dto_cls):
         return self._models[dto_cls]
@@ -78,9 +79,9 @@ class MapperRegistry:
             raise RuntimeError(f"Маппер в ORM не найден для {dto_cls}")
         return func(dto_obj)
 
-    def from_orm(self, orm_obj):
+    def to_dto(self, orm_obj):
         orm_cls = type(orm_obj)
-        func = self._to_domain_funcs.get(orm_cls)
+        func = self._to_dto_funcs.get(orm_cls)
         if not func:
             raise RuntimeError(f"Маппер в Домен не найден для {orm_cls}")
         return func(orm_obj)

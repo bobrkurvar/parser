@@ -1,7 +1,7 @@
-from sqlalchemy import Text, ForeignKey
+from sqlalchemy import Text, ForeignKey, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -13,7 +13,7 @@ class JobView(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     url: Mapped[str]
     feed_name: Mapped[str]
-    external_id: Mapped[str] = mapped_column(unique=True, index=True)
+    external_id: Mapped[int] = mapped_column(unique=True, index=True)
     human_priority: Mapped[int | None] = mapped_column(default=None)
 
     title: Mapped[str] = mapped_column(Text)
@@ -27,7 +27,10 @@ class JobView(Base):
     ai_confidence: Mapped[float] = mapped_column()
 
     is_closed: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
 
 
 class ActiveJob(Base):

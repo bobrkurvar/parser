@@ -43,22 +43,23 @@ class GenericRepository:
     async def create(
         self, domain_obj=None, seq_data: list | None = None
     ) -> tuple | object:
-        incoming_data = seq_data if seq_data is not None else [domain_obj]
+        async with handle_integrity_errors():
+            incoming_data = seq_data if seq_data is not None else [domain_obj]
 
-        orm_objs = []
-        for d_obj in incoming_data:
-            orm_objs.append(self._registry.to_orm(d_obj))
+            orm_objs = []
+            for d_obj in incoming_data:
+                orm_objs.append(self._registry.to_orm(d_obj))
 
-        if seq_data:
-            log.debug("Создание нескольких объектов")
-            self.session.add_all(orm_objs)
-        else:
-            log.debug("Создание одного объекта")
-            self.session.add(orm_objs[0])
+            if seq_data:
+                log.debug("Создание нескольких объектов")
+                self.session.add_all(orm_objs)
+            else:
+                log.debug("Создание одного объекта")
+                self.session.add(orm_objs[0])
 
-        await self.session.flush()
-        created_domains = tuple(self._registry.to_domain(o) for o in orm_objs)
-        return created_domains if seq_data is not None else created_domains[0]
+            await self.session.flush()
+            created_domains = tuple(self._registry.to_dto(o) for o in orm_objs)
+            return created_domains if seq_data is not None else created_domains[0]
 
     async def delete(self, domain_cls, **filters) -> tuple:
         log.debug("%s filter for delete: %s", domain_cls.__name__, filters)
@@ -70,7 +71,7 @@ class GenericRepository:
         #delete_query = delete(model).where(*conditions).returning(model)
         result = await self.session.execute(query)
         deleted_domains = tuple(
-            self._registry.to_domain(record) for record in result.scalars()
+            self._registry.to_dto(record) for record in result.scalars()
         )
         log.debug("Удалено %d записей из %s", len(deleted_domains), model.__name__)
         if not deleted_domains:
@@ -88,7 +89,7 @@ class GenericRepository:
         query = query.values(**values).returning(model)
 
         result = await self.session.scalars(query)
-        return tuple(self._registry.to_domain(record) for record in result)
+        return tuple(self._registry.to_dto(record) for record in result)
 
     async def read_one(
         self,
@@ -125,7 +126,7 @@ class GenericRepository:
             if is_iterable_not_string(filter_data):
                 conditions.append(attr.in_(filter_data))
             else:
-                conditions.append(attr.eq(filter_data))
+                conditions.append(attr == filter_data)
 
         return query.where(*conditions)
 
@@ -167,7 +168,7 @@ class GenericRepository:
             query = query.with_for_update()
 
         result = (await self.session.execute(query)).scalars().unique()
-        tup_res = tuple(self._registry.to_domain(r) for r in result)
+        tup_res = tuple(self._registry.to_dto(r) for r in result)
         if not tup_res and with_raise:
             raise NotFoundError(domain_cls.__name__, **filters)
         return tup_res
@@ -193,7 +194,7 @@ class GenericRepository:
                 orm_obj = self._registry.to_orm(domain_obj)
                 merged_orm = await self.session.merge(orm_obj)
                 await self.session.flush()
-                return self._registry.to_domain(merged_orm)
+                return self._registry.to_dto(merged_orm)
             except StaleDataError as e:
                 log.warning(
                     "Конфликт версий при сохранении %s: %s",

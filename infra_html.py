@@ -1,6 +1,9 @@
 import re
 from bs4 import BeautifulSoup
 from dto import FlJobPage
+import logging
+
+log = logging.getLogger(__name__)
 
 
 def normalize_text(text: str) -> str:
@@ -112,7 +115,7 @@ def parse_fl_job_page(html: str) -> FlJobPage:
     responses_count, response_price_min, response_price_max = (
         get_response_stats(soup)
     )
-
+    log.debug("Парсинг завершён")
     return FlJobPage(
         description=get_description(soup),
         budget_text=get_budget_text(soup),
