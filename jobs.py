@@ -1,10 +1,10 @@
 from filters import analyze_basic
-from dto import JobView, JobPriority, FreelanceJob, ActiveJob, FlJobPage
+from dto import JobView, ActiveJob, FlJobPage
 import logging
 from rss_categories import MAIN_URL, ALL_CATEGORIES
 from exceptions import AlreadyExistsError, NotFoundError
-from infra_html import parse_fl_job_page
-from infra_xml import parse_fl_rss
+from infra.infra_html import parse_fl_job_page
+from infra.infra_xml import parse_fl_rss
 
 log = logging.getLogger(__name__)
 
@@ -31,21 +31,6 @@ async def fetch_jobs(http_client):
                 yield feed_name, job
 
 
-# def add_basic_analysis(
-#     job: FreelanceJob,
-#     feed_name: str,
-# ) -> JobView | None:
-#     basic_analysis = analyze_basic(job)
-#
-#     if basic_analysis.priority <= JobPriority.HIDDEN:
-#         return None
-#
-#     return JobView(
-#         job=job,
-#         basic=basic_analysis,
-#         feed_name=feed_name,
-#     )
-
 
 async def save_analyzed_jobs(uow, jobs: list[JobView]) -> None:
     async with uow:
@@ -54,9 +39,12 @@ async def save_analyzed_jobs(uow, jobs: list[JobView]) -> None:
                 continue
             try:
                 async with uow.savepoint():
-                    await uow.db.create(
-                        ActiveJob(job_data=job_view),
-                    )
+                    if job_view.is_hidden():
+                        await uow.db.create(job_view)
+                    else:
+                        await uow.db.create(
+                            ActiveJob(job_data=job_view),
+                        )
             except AlreadyExistsError:
                 pass
 
@@ -110,6 +98,11 @@ async def read_active_jobs(
 
         if not page_data.is_closed:
             valid_jobs.append(job_view)
+
+    valid_jobs.sort(
+        key=lambda job_view: job_view.final_priority,
+        reverse=True,
+    )
 
     return valid_jobs
 
