@@ -22,7 +22,7 @@ class JobView(Base):
     source: Mapped[str] = mapped_column()
 
     ai_priority: Mapped[int] = mapped_column(index=True)
-    ai_tech_tags: Mapped[str | None] = mapped_column(Text)
+    #ai_tech_tags: Mapped[str | None] = mapped_column(Text)
     ai_explanation: Mapped[str | None] = mapped_column(Text)
     ai_confidence: Mapped[float] = mapped_column()
 

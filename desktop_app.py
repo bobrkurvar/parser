@@ -105,15 +105,6 @@ class App(tk.Tk):
         )
         self.status_label.pack(side="left", padx=(12, 0))
 
-        stats_frame = ttk.Frame(self, padding=(8, 0, 8, 8))
-        stats_frame.pack(fill="x")
-
-        self.active_jobs_label = ttk.Label(
-            stats_frame,
-            text="Активных вакансий: 0",
-        )
-        self.active_jobs_label.pack(side="left")
-
         paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill="both", expand=True, padx=8, pady=8)
 
@@ -363,7 +354,6 @@ class App(tk.Tk):
 
     def clear_ui(self) -> None:
         self.jobs = []
-        self.active_jobs_label.config(text="Активных вакансий: 0")
 
         for item_id in self.tree.get_children():
             self.tree.delete(item_id)
@@ -390,9 +380,9 @@ class App(tk.Tk):
     def show_result(self, jobs: list[JobView]) -> None:
         self.jobs = jobs
 
-        self.active_jobs_label.config(
-            text=f"Активных вакансий: {len(jobs)}",
-        )
+        # self.active_jobs_label.config(
+        #     text=f"Активных вакансий: {len(jobs)}",
+        # )
 
         for index, job_view in enumerate(jobs):
             job = job_view.job
@@ -407,13 +397,18 @@ class App(tk.Tk):
             )
 
             responses_text = (
-                str(page.responses_count)
+                str(page.offer_range.responses_count)
                 if page is not None
-                and page.responses_count is not None
+                    and page.offer_range.responses_count is not None
                 else "-"
             )
 
-            budget_text = job.budget_text or "-"
+            budget_text = (
+                page.page_data.budget_text
+                if page is not None
+                   and page.page_data.budget_text
+                else "-"
+            )
 
             self.tree.insert(
                 "",
@@ -474,14 +469,14 @@ class App(tk.Tk):
             self.responses_var.set("Отклики: данные не получены")
         else:
             responses_count = (
-                page.responses_count
-                if page.responses_count is not None
+                page.offer_range.responses_count
+                if page.offer_range.responses_count is not None
                 else "-"
             )
 
             price_range = format_price_range(
-                page.response_price_min,
-                page.response_price_max,
+                page.offer_range.response_price_min,
+                page.offer_range.response_price_max,
             )
 
             self.responses_var.set(
@@ -508,11 +503,6 @@ class App(tk.Tk):
             self.details_text.insert(
                 tk.END,
                 f"Объяснение ИИ: {ai.explanation or '-'}\n",
-            )
-            self.details_text.insert(
-                tk.END,
-                "Технологии: "
-                f"{', '.join(ai.tech_tags) if ai.tech_tags else '-'}\n\n",
             )
 
         self.details_text.insert(

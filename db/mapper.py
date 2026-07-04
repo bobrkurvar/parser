@@ -12,7 +12,7 @@ def map_job_view_to_orm(obj: dto.JobView):
         tags_raw=",".join(obj.job.tags) if obj.job.tags else None,
         source=obj.job.feed_name,
         ai_priority=obj.ai.priority.value,
-        ai_tech_tags=",".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
+        #ai_tech_tags=",".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
         ai_explanation=obj.ai.explanation,
         ai_confidence=obj.ai.confidence,
         feed_name=obj.job.feed_name
@@ -33,7 +33,7 @@ def map_job_view_to_dto(obj: models.JobView):
         priority=dto.JobPriority(obj.ai_priority),
         confidence=obj.ai_confidence,
         explanation=obj.ai_explanation,
-        tech_tags=obj.ai_tech_tags.split(",") if obj.ai_tech_tags else []
+        #tech_tags=obj.ai_tech_tags.split(",") if obj.ai_tech_tags else []
     )
     return dto.JobView(
         job=job,
@@ -88,5 +88,5 @@ class MapperRegistry:
 
 
 registry = MapperRegistry()
-registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=map_job_view_to_orm, to_dto=map_active_job_view_to_dto)
+registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=map_job_view_to_orm, to_dto=map_job_view_to_dto)
 registry.register(dto_cls=dto.ActiveJob, orm_model=models.ActiveJob, to_orm=map_active_job_view_to_orm, to_dto=map_active_job_view_to_dto)

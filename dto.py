@@ -22,29 +22,12 @@ class FreelanceJob:
     budget_text: str | None = None
 
 
-# @dataclass
-# class BasicAnalysis:
-#     priority: JobPriority
-#     content_keywords: list[str]
-#     excluded_stack: dict[str, list[str]]
-#     reason: str
-
-
 @dataclass
 class AIAnalysis:
     priority: JobPriority
     explanation: str
-    tech_tags: list[str]
+    #tech_tags: list[str]
     confidence: float
-
-    # @classmethod
-    # def from_db(cls, row: dict):
-    #     return cls(
-    #         priority=JobPriority(row["ai_priority"]),
-    #         explanation=row["ai_explanation"] or "",
-    #         confidence=row["ai_confidence"],
-    #         tech_tags=row["ai_tech_tags"].split(", ") if row["ai_tech_tags"] else []
-    #     )
 
 
 @dataclass
@@ -52,7 +35,7 @@ class JobView:
     job: FreelanceJob
     id: int | None = None
     human_priority: JobPriority | None = None
-    page_data: "FlJobPage | None" = None
+    page_data: "ProjectData | None" = None
     ai: AIAnalysis | None = None
 
     @property
@@ -64,8 +47,6 @@ class JobView:
 
     def is_hidden(self):
         return self.final_priority == JobPriority.HIDDEN
-
-
 
 
 @dataclass
@@ -82,12 +63,21 @@ class ActiveJob:
     job_data: JobView
 
 
-# Динамические данные, которые я получаю после парса страницы
 @dataclass(slots=True)
-class FlJobPage:
-    budget_text: str | None
-    description: str
+class OfferRange:
     responses_count: int | None
     response_price_min: int | None
     response_price_max: int | None
-    is_closed: bool = False
+
+
+@dataclass
+class ProjectPageData:
+    budget_text: str | None
+    description: str
+    is_closed: bool
+
+
+@dataclass(slots=True)
+class ProjectData:
+    offer_range: OfferRange
+    page_data: ProjectPageData

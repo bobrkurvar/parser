@@ -1,7 +1,9 @@
-import re
 from bs4 import BeautifulSoup
-from dto import FlJobPage
+from dto import ProjectPageData, OfferRange
 import logging
+import base64
+import json
+
 
 log = logging.getLogger(__name__)
 
@@ -43,83 +45,47 @@ def get_budget_text(soup: BeautifulSoup) -> str | None:
     return None
 
 
-def parse_first_int(text: str | None) -> int | None:
-    if not text:
-        return None
-
-    match = re.search(r"\d[\d\s\u00a0]*", text)
-
-    if match is None:
-        return None
-
-    return int(
-        re.sub(r"[\s\u00a0]", "", match.group())
+def get_is_closed(soup: BeautifulSoup) -> bool:
+    status_block = soup.select_one(
+        '[id^="project_status_"]',
     )
 
+    if status_block is None:
+        return False
 
-def parse_price_range(text: str | None) -> tuple[int | None, int | None]:
-    if not text:
-        return None, None
-
-    numbers = [
-        int(re.sub(r"[\s\u00a0]", "", value))
-        for value in re.findall(r"\d[\d\s\u00a0]*", text)
-    ]
-
-    if not numbers:
-        return None, None
-
-    if len(numbers) == 1:
-        return numbers[0], numbers[0]
-
-    return numbers[0], numbers[1]
-
-
-def get_response_stats(soup: BeautifulSoup):
-    stats_node = soup.select_one(
-        "#proposal-hidden-block .proposals-content-block"
+    status_text = normalize_text(
+        status_block.get_text(" ", strip=True),
     )
 
-    if stats_node is None:
-        return None, None, None
-
-    values: dict[str, str] = {}
-
-    for row in stats_node.select(".mt-10"):
-        label_node = row.select_one(".text-6")
-        value_node = row.select_one(".text-5")
-
-        if label_node is None or value_node is None:
-            continue
-
-        label = normalize_text(
-            label_node.get_text(" ", strip=True)
-        ).removesuffix(":")
-
-        value = normalize_text(
-            value_node.get_text(" ", strip=True)
-        )
-
-        values[label] = value
-
-    responses_count = parse_first_int(values.get("Откликнулись"))
-    min_price, max_price = parse_price_range(values.get("Цены"))
-
-    return responses_count, min_price, max_price
+    return "Заказчик выбрал исполнителя" in status_text
 
 
 
-def parse_fl_job_page(html: str) -> FlJobPage:
+
+
+def parse_fl_job_page(html: str) -> ProjectPageData:
     soup = BeautifulSoup(html, "lxml")
-
-    responses_count, response_price_min, response_price_max = (
-        get_response_stats(soup)
-    )
-    log.debug("Парсинг завершён")
-    return FlJobPage(
+    result = ProjectPageData(
         description=get_description(soup),
         budget_text=get_budget_text(soup),
-        responses_count=responses_count,
-        response_price_min=response_price_min,
-        response_price_max=response_price_max,
+        is_closed=get_is_closed(soup),
+    )
+    log.debug("Парсинг завершён: %s", result)
+    return result
+
+
+def offer_range(response_data: dict) -> OfferRange:
+    encoded_result = response_data.get("result")
+    if not encoded_result:
+        raise ValueError("Тело offer range не удалось декодировать")
+
+    token = base64.b64decode(encoded_result,).decode("utf-8")
+    _, payload_part, _ = token.split(".", maxsplit=2)
+    payload_part += "=" * (-len(payload_part) % 4)
+    payload = json.loads(base64.urlsafe_b64decode(payload_part))
+
+    return OfferRange(
+        responses_count=payload.get("freelancersCount"),
+        response_price_min=payload.get("minCost"),
+        response_price_max=payload.get("maxCost")
     )

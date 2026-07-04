@@ -1,9 +1,6 @@
-
-
-
 import logging
 from functools import wraps
-
+from collections.abc import Collection
 from httpx import AsyncClient, ConnectError
 
 log = logging.getLogger(__name__)
@@ -30,6 +27,7 @@ def add_exception_handler(cls):
 
 
 class HttpClient:
+    BASE_URL = "https://www.fl.ru"
 
     def __init__(self, url=None, app=None):
         self._url = url
@@ -50,16 +48,49 @@ class HttpClient:
             raise RuntimeError("HTTP client is not initialized")
         return self._client
 
-    async def fetch(self, url: str) -> str:
-        resp = await self.client.get(url)
-        resp.raise_for_status()
-        return resp.text
+    async def _get(
+        self,
+        url: str,
+        *,
+        params: dict | None = None,
+        headers: dict | None = None,
+    ):
+        response = await self._client.get(
+            url,
+            params=params,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response
 
-    # async def fetch_fl_jobs(self, url: str) -> list[FreelanceJob]:
-    #     resp = await self.client.get(url)
-    #     resp.raise_for_status()
-    #     xml_text = resp.text
-    #     return parse_fl_rss(xml_text)
+    async def fetch_rss(
+        self,
+        category_id: int,
+        subcategory_id: int,
+    ) -> str:
+        url = f"{self.BASE_URL}/rss/all.xml"
+        return (await self._get(
+            url,
+            params={
+                "category": category_id,
+                "subcategory": subcategory_id,
+            }
+        )).text
+
+
+    async def fetch_project_page(self, project_url: str) -> str:
+        return (await self._get(project_url)).text
+
+
+    async def fetch_offer_range(self, project_id: int) -> dict:
+        url = f"{self.BASE_URL}/projects/{project_id}/offers/range/"
+
+        return (await self._get(
+            url,
+            headers={}
+        )).json()
+
+
 
     async def close(self):
         if self._client:
