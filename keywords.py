@@ -20,9 +20,7 @@ CONTENT_KEYWORDS = {
     "rest",
     "json",
     "webhook",
-    "вебхук",
-    "интеграция",
-    "интегрировать",
+    "вебхук"
 
     # bots / messengers
     "бот",

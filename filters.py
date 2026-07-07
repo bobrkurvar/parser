@@ -60,20 +60,4 @@ def analyze_basic(job: FreelanceJob) -> bool:
 
     return True
 
-# def analyze_basic(job: FreelanceJob) -> BasicAnalysis:
-#     content = find_content_keywords(job.title, job.description)
-#     excluded_stack = find_excluded_stack(job.title, job.description)
-#     priority, content_keywords, stack, reason = JobPriority.MEDIUM, [], {}, "Нет явных полезных слов, но категория подходит"
-#     if content and not excluded_stack:
-#         priority, content_keywords, stack, reason = JobPriority.HIGH, content, {}, "Есть полезные ключевые слова"
-#     elif content and excluded_stack:
-#         priority, content_keywords, stack, reason= JobPriority.LOW, content, excluded_stack, "Есть полезные слова, но найден чужой стек"
-#     elif not content and excluded_stack:
-#         priority, content_keywords, stack, reason = JobPriority.HIDDEN, [], excluded_stack, "Чужой стек без полезных сигналов"
-#
-#     return BasicAnalysis(
-#         priority=priority,
-#         content_keywords=content_keywords,
-#         excluded_stack=stack,
-#         reason=reason,
-#     )
+
