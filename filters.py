@@ -56,6 +56,7 @@ def analyze_basic(job: FreelanceJob) -> bool:
     )
 
     if not content and excluded_stack:
+        job.hidden = True
         return False
 
     return True

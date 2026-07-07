@@ -26,13 +26,13 @@ class FreelanceJob:
 class AIAnalysis:
     priority: JobPriority
     explanation: str
-    #tech_tags: list[str]
     confidence: float
 
 
 @dataclass
 class JobView:
     job: FreelanceJob
+    priority: JobPriority
     id: int | None = None
     human_priority: JobPriority | None = None
     page_data: "ProjectData | None" = None
@@ -42,8 +42,10 @@ class JobView:
     def final_priority(self) -> JobPriority | None:
         if self.human_priority is not None:
             return self.human_priority
-        if self.ai:
-            return self.ai.priority
+        # if self.ai:
+        #     return self.ai.priority
+        return self.priority
+
 
     def is_hidden(self):
         return self.final_priority == JobPriority.HIDDEN
@@ -56,11 +58,6 @@ class CollectResult:
     content_filter_cnt: int
     exclude_stack_filter_cnt: int
     jobs: list[JobView]
-
-
-@dataclass
-class ActiveJob:
-    job_data: JobView
 
 
 @dataclass(slots=True)

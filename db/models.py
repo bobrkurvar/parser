@@ -1,7 +1,8 @@
-from sqlalchemy import Text, ForeignKey, DateTime
+from sqlalchemy import Text, ForeignKey, DateTime, CheckConstraint
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import datetime, timezone
+from dto import JobPriority
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -20,29 +21,29 @@ class JobView(Base):
     description: Mapped[str] = mapped_column(Text)
     tags_raw: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column()
-
-    ai_priority: Mapped[int] = mapped_column(index=True)
-    #ai_tech_tags: Mapped[str | None] = mapped_column(Text)
-    ai_explanation: Mapped[str | None] = mapped_column(Text)
-    ai_confidence: Mapped[float] = mapped_column()
-
+    priority: Mapped[int]
     is_closed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
+    __table_args__ = (
+        CheckConstraint(
+            "status_name IN ({})".format(
+                ", ".join(f"'{priority}'" for priority in JobPriority)
+            ),
+            name="check_priority",
+        ),
+    )
 
 
-class ActiveJob(Base):
-    __tablename__ = "active_jobs"
-
-    id: Mapped[int] = mapped_column(
+class AiAnalysis(Base):
+    __tablename__ = "ai_analysis"
+    job_id: Mapped[int] = mapped_column(
         ForeignKey("job_data.id", ondelete="CASCADE"),
         primary_key=True,
     )
+    ai_explanation: Mapped[str | None] = mapped_column(Text)
+    ai_confidence: Mapped[float] = mapped_column()
 
-    job_data: Mapped[JobView] = relationship(
-        "JobView",
-        cascade="save-update",
-        lazy="joined", # по умолчанию подгрузит сам
-    )
+

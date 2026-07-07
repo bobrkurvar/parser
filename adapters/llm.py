@@ -1,6 +1,6 @@
 from google import genai
 from pydantic import BaseModel, Field
-from dto import AIAnalysis, JobPriority, JobView
+from dto import AIAnalysis, JobPriority, FreelanceJob
 import asyncio
 import logging
 from .files import KeyProvider
@@ -144,21 +144,17 @@ class GeminiAnalyzer:
         self.api_key = self.key_manager.get_key()
         self.client = genai.Client(api_key=self.api_key)
 
-
-    def _build_batch_text(self, chunk: list[JobView]) -> tuple[dict[int, JobView], str]:
-        jobs_by_index: dict[int, JobView] = {}
+    def _build_batch_text(self, chunk: list[FreelanceJob]) -> str:
         batch_text_parts: list[str] = []
 
-        for index, job_view in enumerate(chunk):
-            jobs_by_index[index] = job_view
-
+        for index, job in enumerate(chunk):
             batch_text_parts.append(
                 f"ID: {index}\n"
-                f"Заголовок: {job_view.job.title}\n"
-                f"Описание: {job_view.job.description}"
+                f"Заголовок: {job.title}\n"
+                f"Описание: {job.description}"
             )
-        return jobs_by_index, "\n---\n".join(batch_text_parts)
 
+        return "\n---\n".join(batch_text_parts)
 
     async def _request_batch(self, batch_text: str):
         try:
@@ -188,21 +184,19 @@ class GeminiAnalyzer:
 
         return None
 
-
-    async def analyze_batch(
+    async def analyze_jobs(
         self,
-        jobs_to_analyze: list[JobView],
+        jobs_to_analyze: list[FreelanceJob],
         batch_size: int = 15,
-    ):
-        chunks = [
-            jobs_to_analyze[i:i + batch_size]
-            for i in range(0, len(jobs_to_analyze), batch_size)
-        ]
+    ) -> list[AIAnalysis]:
+        result: list[AIAnalysis | None] = [None] * len(jobs_to_analyze)
 
-        chunks = chunks[:self.limit]
+        for chunk_number, start_index in enumerate(range(0, len(jobs_to_analyze), batch_size)):
+            if self.limit is not None and chunk_number >= self.limit:
+                break
 
-        for chunk in chunks:
-            jobs_by_index, batch_text = self._build_batch_text(chunk)
+            chunk = jobs_to_analyze[start_index:start_index + batch_size]
+            batch_text = self._build_batch_text(chunk)
 
             ai_results = await self._request_batch(batch_text)
 
@@ -211,23 +205,19 @@ class GeminiAnalyzer:
                 continue
 
             for ai_data in ai_results:
-                job_view = jobs_by_index.get(ai_data.batch_index)
-
-                if job_view is None:
-                    log.warning("Gemini вернул несуществующий batch_index: %s",ai_data.batch_index,)
+                if not 0 <= ai_data.batch_index < len(chunk):
+                    log.error("Несуществующий batch_index: %s",ai_data.batch_index)
                     continue
 
-                priority_value = max(
-                    JobPriority.HIDDEN,
-                    min(ai_data.priority_value, JobPriority.HIGH),
-                )
+                priority_value = max(JobPriority.HIDDEN, min(ai_data.priority_value, JobPriority.HIGH))
 
-                job_view.ai = AIAnalysis(
+                result[start_index + ai_data.batch_index] = AIAnalysis(
                     priority=JobPriority(priority_value),
                     explanation=ai_data.explanation,
-                    #tech_tags=ai_data.tech_tags,
                     confidence=ai_data.confidence,
                 )
 
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
+
+        return result
 
