@@ -1,5 +1,3 @@
-
-
 CONTENT_KEYWORDS = {
     # python stack
     "python",
@@ -13,14 +11,13 @@ CONTENT_KEYWORDS = {
     "backend",
     "бекенд",
     "бэкенд",
-    "сервер",
-    "серверная часть",
+    "серверн",
     "api",
     "апи",
     "rest",
     "json",
     "webhook",
-    "вебхук"
+    "вебхук",
 
     # bots / messengers
     "бот",
@@ -30,24 +27,22 @@ CONTENT_KEYWORDS = {
     "tg",
     "mini app",
     "telegram mini app",
-    "уведомления",
+    "уведомлен",
 
     # parsing / automation / scripts
-    "парсинг",
-    "парсер",
+    "парс",
     "scraping",
-    "скрапинг",
-    "сбор данных",
-    "выгрузка данных",
+    "скрап",
+    "сбор данн",
+    "выгрузк",
     "скрипт",
-    "скрипты",
-    "автоматизация",
-    "автоматизировать",
-    "обработка данных",
-    "обработка файлов",
+    "автоматизац",
+    "автоматизир",
+    "обработк",
+    "файл",
 
     # databases
-    "база данных",
+    "база данн",
     "бд",
     "postgresql",
     "postgres",
@@ -57,17 +52,16 @@ CONTENT_KEYWORDS = {
     "sql",
 
     # sites / web apps
-    "личный кабинет",
-    "админка",
-    "панель управления",
+    "личн кабинет",
+    "админк",
+    "панел управлен",
     "dashboard",
-    "форма заявки",
-    "заявка",
-    "заявки",
+    "форм заявк",
+    "заявк",
     "сайт",
     "mvp",
     "прототип",
-    "веб-приложение",
+    "веб-приложен",
     "web app",
 
     # crm / erp
@@ -75,106 +69,30 @@ CONTENT_KEYWORDS = {
     "erp",
     "amocrm",
     "amo crm",
-    "amoCRM",
-    "воронка",
-    "сделки",
-    "лиды",
-    "клиенты",
-    "менеджеры",
-    "заявки",
+    "воронк",
+    "сделк",
+    "лид",
+    "клиент",
+    "менеджер",
     "битрикс24",
     "bitrix24",
 }
 
-EXCLUDED_STACK_PATTERNS = {
-    "go": [
-        r"\bgolang\b",
-        r"\bgo\b",
-        r"\bна go\b",
-        r"\bна golang\b",
-    ],
-
-    "php": [
-        r"\bphp\b",
-        r"\blaravel\b",
-        r"\bsymfony\b",
-        r"\byii\b",
-        r"\byii2\b",
-    ],
-
-    "cms_php": [
-        r"\bwordpress\b",
-        r"\bwp\b",
-        r"\bwoocommerce\b",
-        r"\bopencart\b",
-        r"\bjoomla\b",
-        r"\bdrupal\b",
-        r"\bmodx\b",
-        r"\bmagento\b",
-        r"\bprestashop\b",
-        r"\bcs-cart\b",
-        r"\bbitrix\b",
-        r"\bбитрикс\b",
-        r"\b1c-bitrix\b",
-        r"\b1с-битрикс\b",
-    ],
-
-    "java": [
-        r"\bjava\b",
-        r"\bspring\b",
-    ],
-
-    "csharp": [
-        r"\bc#\b",
-        r"\b\.net\b",
-        r"\bdotnet\b",
-        r"\basp\.net\b",
-    ],
-
-    "mobile_native": [
-        r"\bswift\b",
-        r"\bkotlin\b",
-        r"\bflutter\b",
-        r"\bdart\b",
-    ],
-
-    "one_c": [
-        r"\b1c\b",
-        r"\b1с\b",
-        r"\b1c бухгалтерия\b",
-        r"\b1с бухгалтерия\b",
-        r"\bконфигурац\w* 1с\b",
-    ],
-
-    "node": [
-        r"\bnode\.js\b",
-        r"\bnodejs\b",
-        r"\bnest\.js\b",
-        r"\bnestjs\b",
-    ],
-
-    "frontend_only": [
-        r"\bhtml/css\b",
-        r"\bhtml css\b",
-        r"\bверстк\w*\b",
-        r"\breact\b",
-        r"\bvue\b",
-        r"\bangular\b",
-    ],
-
-    "no_code_site_builders": [
-        r"\btilda\b",
-        r"\bтильд\w*\b",
-        r"\bwebflow\b",
-        r"\bwix\b",
-    ],
-
-    "design_only": [
-        r"\bfigma\b",
-        r"\bui/ux\b",
-        r"\bux/ui\b",
-        r"\bмакет\w*\b",
-        r"\bдизайн\b",
-        r"\bредизайн\b",
-    ],
+EXCLUDED_TERMS = {
+    "golang",
+    "на go",
+    "php",
+    "laravel",
+    "wordpress",
+    "woocommerce",
+    "opencart",
+    "битрикс",
+    "тильд",
+    "react",
+    "vue",
+    "angular",
+    "верстк",
+    "figma",
+    "макет",
+    "дизайн",
 }

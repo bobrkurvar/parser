@@ -4,13 +4,11 @@ from filters import analyze_basic
 from dto import JobView, ProjectData, ProjectPageData, JobPriority
 import logging
 from rss_categories import ALL_CATEGORIES
-from exceptions import AlreadyExistsError, NotFoundError
+from exceptions import NotFoundError
 from infra.infra_html import parse_fl_job_page, offer_range
 from infra.infra_xml import parse_fl_rss
 
 log = logging.getLogger(__name__)
-
-
 
 
 def get_category_with_subcategory(category_group: dict[str, int]):
@@ -21,7 +19,6 @@ def get_category_with_subcategory(category_group: dict[str, int]):
         yield category_id, name, subcategory
 
 
-
 async def fetch_jobs(http_client):
     for cat in ALL_CATEGORIES:
         for category_id, category, subcategory_id in get_category_with_subcategory(cat):
@@ -30,22 +27,6 @@ async def fetch_jobs(http_client):
             for job in jobs:
                 yield category, job
 
-
-# async def save_jobs(uow, jobs: list[JobView]) -> None:
-#     async with uow:
-#         for job_view in jobs:
-#             if job_view.ai is None:
-#                 continue
-#             try:
-#                 async with uow.savepoint():
-#                     #if job_view.is_hidden():
-#                     await uow.db.create(job_view)
-#                     # else:
-#                     #     await uow.db.create(
-#                     #         ActiveJob(job_data=job_view),
-#                     #     )
-#             except AlreadyExistsError:
-#                 pass
 
 
 async def collect_pipeline(http_client, llm, uow) -> dict[int, ProjectPageData]:
@@ -75,8 +56,7 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, ProjectPageData]:
         if analysis is None:
             log.error("Нет анализа для данной работы: %s", job)
             continue
-        job_view = JobView(job=job, priority=analysis.priority, ai=analysis)
-        jobs_to_save.append(job_view)
+        jobs_to_save.append(JobView(job=job, priority=analysis.priority, ai=analysis))
     if jobs_to_save:
         async with uow:
             await uow.db.create(jobs_to_save)
@@ -90,7 +70,7 @@ async def read_active_jobs(
 ) -> list[JobView]:
     page_cache = page_cache or {}
     async with uow:
-        active_jobs = await uow.db.read(JobView, {})
+        active_jobs = await uow.db.read(JobView, is_closed=False, is_hidden=False)
     valid_jobs: list[JobView] = []
 
     for job_view in active_jobs:
@@ -111,7 +91,7 @@ async def read_active_jobs(
             valid_jobs.append(job_view)
 
     valid_jobs.sort(
-        key=lambda job_view: job_view.final_priority,
+        key=lambda jv: jv.final_priority,
         reverse=True,
     )
 

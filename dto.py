@@ -24,31 +24,25 @@ class FreelanceJob:
 
 @dataclass
 class AIAnalysis:
-    priority: JobPriority
     explanation: str
     confidence: float
+    priority: JobPriority | None = None
+    job_id: int | None = None
 
 
 @dataclass
 class JobView:
     job: FreelanceJob
-    priority: JobPriority
     id: int | None = None
-    human_priority: JobPriority | None = None
     page_data: "ProjectData | None" = None
     ai: AIAnalysis | None = None
+    priority: JobPriority = ai.priority
+    is_hidden: bool = False
 
-    @property
-    def final_priority(self) -> JobPriority | None:
-        if self.human_priority is not None:
-            return self.human_priority
-        # if self.ai:
-        #     return self.ai.priority
-        return self.priority
+    def refresh_priority(self, priority: JobPriority):
+        self.priority = priority
 
 
-    def is_hidden(self):
-        return self.final_priority == JobPriority.HIDDEN
 
 
 @dataclass

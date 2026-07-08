@@ -2,6 +2,24 @@ import dto
 from db import models
 from sqlalchemy import inspect
 
+from dto import JobPriority
+
+
+def map_ai_analysis_to_orm(obj: dto.AIAnalysis):
+    return dto.AIAnalysis(
+        job_id=obj.job_id,
+        explanation=obj.explanation,
+        confidence=obj.confidence,
+    )
+
+
+def map_ai_analysis_to_dto(obj: models.AiAnalysis):
+    return dto.AIAnalysis(
+        job_id=obj.job_id,
+        explanation=obj.explanation,
+        confidence=obj.confidence,
+    )
+
 
 def map_job_view_to_orm(obj: dto.JobView):
     return models.JobView(
@@ -11,10 +29,7 @@ def map_job_view_to_orm(obj: dto.JobView):
         description=obj.job.description,
         tags_raw=",".join(obj.job.tags) if obj.job.tags else None,
         source=obj.job.feed_name,
-        ai_priority=obj.ai.priority.value,
-        #ai_tech_tags=",".join(obj.ai.tech_tags) if obj.ai.tech_tags else None,
-        ai_explanation=obj.ai.explanation,
-        ai_confidence=obj.ai.confidence,
+        ai_analisys=map_ai_analysis_to_orm(obj.ai) if obj.ai else None,
         feed_name=obj.job.feed_name
     )
 
@@ -29,14 +44,13 @@ def map_job_view_to_dto(obj: models.JobView):
         tags=obj.tags_raw.split(",") if obj.tags_raw else [],
         feed_name=obj.feed_name
     )
-    ai = dto.AIAnalysis(
-        priority=dto.JobPriority(obj.ai_priority),
-        confidence=obj.ai_confidence,
-        explanation=obj.ai_explanation,
-        #tech_tags=obj.ai_tech_tags.split(",") if obj.ai_tech_tags else []
-    )
+    ai = None
+    if "ai_analysis" not in inspect(obj).unloaded:
+        ai = map_ai_analysis_to_dto(obj.ai_analysis)
+
     return dto.JobView(
         job=job,
+        priority=JobPriority(obj.priority),
         human_priority=(
             dto.JobPriority(obj.human_priority)
             if obj.human_priority is not None else None
@@ -45,24 +59,12 @@ def map_job_view_to_dto(obj: models.JobView):
     )
 
 
-def map_active_job_view_to_dto(obj: models.ActiveJob) -> dto.JobView:
-    if "job_data" not in inspect(obj).unloaded:
-        # учитывая что в модели стоит relationship(lazy="joined") связь автоматическая
-        return map_job_view_to_dto(obj.job_data)
-    else:
-        raise ValueError("Не загружена информация")
-
-
-def map_active_job_view_to_orm(obj: dto.ActiveJob):
-    return models.ActiveJob(
-        job_data=map_job_view_to_orm(obj.job_data)
-    )
 
 class MapperRegistry:
     def __init__(self):
-        self._models = {}  # domain_cls -> orm_model
-        self._to_orm_funcs = {}  # domain_cls -> func
-        self._to_dto_funcs = {}  # orm_model -> func (Внимание: ключ - ORM класс!)
+        self._models = {}
+        self._to_orm_funcs = {}
+        self._to_dto_funcs = {}
 
     def register(self, dto_cls, orm_model, to_orm, to_dto):
         self._models[dto_cls] = orm_model
@@ -89,4 +91,3 @@ class MapperRegistry:
 
 registry = MapperRegistry()
 registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=map_job_view_to_orm, to_dto=map_job_view_to_dto)
-registry.register(dto_cls=dto.ActiveJob, orm_model=models.ActiveJob, to_orm=map_active_job_view_to_orm, to_dto=map_active_job_view_to_dto)
