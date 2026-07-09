@@ -17,6 +17,7 @@ class JobView(Base):
     external_id: Mapped[int] = mapped_column(unique=True, index=True)
 
     title: Mapped[str] = mapped_column(Text)
+    budget: Mapped[str | None]
     description: Mapped[str] = mapped_column(Text)
     tags_raw: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column()
@@ -27,7 +28,7 @@ class JobView(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    ai_analysis: Mapped["AiAnalysis"] = relationship("AiAnalysis")
+    ai_analysis: Mapped["AIAnalysis"] = relationship("AIAnalysis")
 
     __table_args__ = (
         CheckConstraint(
@@ -39,7 +40,7 @@ class JobView(Base):
     )
 
 
-class AiAnalysis(Base):
+class AIAnalysis(Base):
     __tablename__ = "ai_analysis"
     job_id: Mapped[int] = mapped_column(
         ForeignKey("job_data.id", ondelete="CASCADE"),

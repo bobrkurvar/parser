@@ -1,7 +1,5 @@
-import asyncio
-
 from filters import analyze_basic
-from dto import JobView, ProjectData, ProjectPageData, JobPriority
+from dto import JobStaticData, JobPageData, JobPriority
 import logging
 from rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
@@ -28,8 +26,7 @@ async def fetch_jobs(http_client):
                 yield category, job
 
 
-
-async def collect_pipeline(http_client, llm, uow) -> dict[int, ProjectPageData]:
+async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
     seen_external_ids, pending_analyze, jobs_to_save, page_cache = set(), [], [], {}
     async with uow:
         async for feed_name, job in fetch_jobs(http_client):
@@ -38,17 +35,15 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, ProjectPageData]:
             seen_external_ids.add(job.external_id)
             try:
                 async with uow.savepoint():
-                    await uow.db.read_one(JobView, external_id=job.external_id, with_raise=True)
+                    await uow.db.read_one(JobStaticData, external_id=job.external_id, with_raise=True)
             except NotFoundError:
                 html_page = await http_client.fetch_project_page(job.url)
                 page_data = parse_fl_job_page(html_page)
-                if not page_data.is_closed:
-                    job.description, job.feed_name, job.budget_text = page_data.description, feed_name, page_data.budget_text
-                    page_cache[job.external_id] = page_data
-                    if analyze_basic(job):
-                        pending_analyze.append(job)
-                    else:
-                        jobs_to_save.append(JobView(job=job, priority=JobPriority.HIDDEN))
+                page_cache[job.external_id] = page_data
+                if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
+                    pending_analyze.append(job)
+                else:
+                    jobs_to_save.append(JobStaticData(feed_job=job, priority=JobPriority.HIDDEN, page_data=page_data))
 
     analyses = await llm.analyze_jobs(pending_analyze)
 
@@ -56,22 +51,32 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, ProjectPageData]:
         if analysis is None:
             log.error("Нет анализа для данной работы: %s", job)
             continue
-        jobs_to_save.append(JobView(job=job, priority=analysis.priority, ai=analysis))
+        jobs_to_save.append(
+            JobStaticData(
+                feed_job=job,
+                priority=analysis.priority,
+                ai=analysis,
+                page_data=page_cache[job.external_id]
+            )
+        )
+
     if jobs_to_save:
         async with uow:
-            await uow.db.create(jobs_to_save)
+            await uow.db.create(seq_data=jobs_to_save)
+
     return page_cache
 
 
 async def read_active_jobs(
     http_client,
     uow,
-    page_cache: dict[int, ProjectPageData] | None = None,
-) -> list[JobView]:
+    page_cache: dict[int, JobPageData] | None = None,
+) -> list[JobStaticData]:
     page_cache = page_cache or {}
     async with uow:
-        active_jobs = await uow.db.read(JobView, is_closed=False, is_hidden=False)
-    valid_jobs: list[JobView] = []
+        active_jobs = await uow.db.read(JobStaticData, is_hidden=False)
+    valid_jobs: list[JobStaticData] = []
+    hide_jobs_ids = []
 
     for job_view in active_jobs:
         external_id = job_view.job.external_id
@@ -82,23 +87,26 @@ async def read_active_jobs(
 
         if not page_data.is_closed:
             fetch_data = await http_client.fetch_offer_range(project_id=external_id)
-            fetch_data_dto = offer_range(fetch_data)
-            full_project_data = ProjectData(page_data=page_data, offer_range=fetch_data_dto)
-
-            log.debug("in read page_data: %s", full_project_data)
-            job_view.page_data = full_project_data
-
+            offer_data = offer_range(fetch_data)
+            log.debug("offer range data: %s page data: %s", offer_data, page_data)
+            job_view.page_data, job_view.offer_range = page_data, offer_data
             valid_jobs.append(job_view)
+        else:
+            hide_jobs_ids.append(job_view.id)
+
+    if hide_jobs_ids:
+        async with uow:
+            await uow.db.update(JobStaticData, {"id": hide_jobs_ids}, is_hidden=True, is_closed=True)
 
     valid_jobs.sort(
-        key=lambda jv: jv.final_priority,
+        key=lambda jv: jv.priority,
         reverse=True,
     )
 
     return valid_jobs
 
 
-async def load_jobs(http_client, llm, uow) -> list[JobView]:
+async def load_jobs(http_client, llm, uow) -> list[JobStaticData]:
     page_cache = await collect_pipeline(
         http_client=http_client,
         llm=llm,

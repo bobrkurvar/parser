@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from dto import ProjectPageData, OfferRange
+from dto import JobPageData, OfferRange
 import logging
 import base64
 import json
@@ -63,9 +63,9 @@ def get_is_closed(soup: BeautifulSoup) -> bool:
 
 
 
-def parse_fl_job_page(html: str) -> ProjectPageData:
+def parse_fl_job_page(html: str) -> JobPageData:
     soup = BeautifulSoup(html, "lxml")
-    result = ProjectPageData(
+    result = JobPageData(
         description=get_description(soup),
         budget_text=get_budget_text(soup),
         is_closed=get_is_closed(soup),

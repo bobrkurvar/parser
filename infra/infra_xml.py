@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from dto import FreelanceJob
+from dto import FeedJob
 from html import unescape
 import re
 import logging
@@ -23,10 +23,10 @@ def extract_fl_project_id(url: str) -> int | None:
 def parse_fl_rss(
     xml_text: str,
     feed_name: str,
-) -> list[FreelanceJob]:
+) -> list[FeedJob]:
     root = ET.fromstring(xml_text)
 
-    jobs: list[FreelanceJob] = []
+    jobs: list[FeedJob] = []
 
     for item in root.findall(".//item"):
         title = clean_html(item.findtext("title", default=""))
@@ -51,11 +51,10 @@ def parse_fl_rss(
         ]
 
         jobs.append(
-            FreelanceJob(
+            FeedJob(
                 source="fl.ru",
                 external_id=external_id,
                 title=title,
-                description=description,
                 url=link,
                 tags=categories,
                 published_at=pub_date or None,

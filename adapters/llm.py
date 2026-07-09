@@ -1,6 +1,6 @@
 from google import genai
 from pydantic import BaseModel, Field
-from dto import AIAnalysis, JobPriority, FreelanceJob
+from dto import AIAnalysis, JobPriority, FeedJob
 import asyncio
 import logging
 from .files import KeyProvider
@@ -144,7 +144,7 @@ class GeminiAnalyzer:
         self.api_key = self.key_manager.get_key()
         self.client = genai.Client(api_key=self.api_key)
 
-    def _build_batch_text(self, chunk: list[FreelanceJob]) -> str:
+    def _build_batch_text(self, chunk: list[FeedJob]) -> str:
         batch_text_parts: list[str] = []
 
         for index, job in enumerate(chunk):
@@ -186,7 +186,7 @@ class GeminiAnalyzer:
 
     async def analyze_jobs(
         self,
-        jobs_to_analyze: list[FreelanceJob],
+        jobs_to_analyze: list[FeedJob],
         batch_size: int = 15,
     ) -> list[AIAnalysis]:
         result: list[AIAnalysis | None] = [None] * len(jobs_to_analyze)

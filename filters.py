@@ -1,4 +1,4 @@
-from dto import FreelanceJob
+from dto import FeedJob
 from keywords import CONTENT_KEYWORDS, EXCLUDED_TERMS
 import re
 import logging
@@ -63,9 +63,9 @@ def find_excluded_stack(*parts: str) -> list[str]:
 
 
 
-def analyze_basic(job: FreelanceJob) -> bool:
-    content = find_content_keywords(job.title, job.description)
-    excluded = find_excluded_stack(job.title, job.description)
+def analyze_basic(title: str, description: str) -> bool:
+    content = find_content_keywords(title, description)
+    excluded = find_excluded_stack(title, description)
 
     if not content and excluded:
         return False

@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 13d912e7afee
+Revision ID: 241d721e9dc4
 Revises: 
-Create Date: 2026-07-08 13:20:33.905425
+Create Date: 2026-07-09 13:48:57.128683
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '13d912e7afee'
+revision: str = '241d721e9dc4'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,12 +26,12 @@ def upgrade() -> None:
     sa.Column('url', sa.String(), nullable=False),
     sa.Column('feed_name', sa.String(), nullable=False),
     sa.Column('external_id', sa.Integer(), nullable=False),
-    sa.Column('human_priority', sa.Integer(), nullable=True),
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('tags_raw', sa.Text(), nullable=True),
     sa.Column('source', sa.String(), nullable=False),
     sa.Column('priority', sa.Integer(), nullable=False),
+    sa.Column('is_hidden', sa.Boolean(), nullable=False),
     sa.Column('is_closed', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("priority IN ('0', '1', '2', '3')", name='check_priority'),
@@ -40,6 +40,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_job_data_external_id'), 'job_data', ['external_id'], unique=True)
     op.create_table('ai_analysis',
     sa.Column('job_id', sa.Integer(), nullable=False),
+    sa.Column('priority', sa.Integer(), nullable=False),
     sa.Column('explanation', sa.Text(), nullable=True),
     sa.Column('confidence', sa.Float(), nullable=False),
     sa.ForeignKeyConstraint(['job_id'], ['job_data.id'], ondelete='CASCADE'),

@@ -2,18 +2,18 @@ import dto
 from db import models
 from sqlalchemy import inspect
 
-from dto import JobPriority
+from dto import JobPriority, PageData
 
 
 def map_ai_analysis_to_orm(obj: dto.AIAnalysis):
-    return dto.AIAnalysis(
+    return models.AIAnalysis(
         job_id=obj.job_id,
         explanation=obj.explanation,
         confidence=obj.confidence,
     )
 
 
-def map_ai_analysis_to_dto(obj: models.AiAnalysis):
+def map_ai_analysis_to_dto(obj: models.AIAnalysis):
     return dto.AIAnalysis(
         job_id=obj.job_id,
         explanation=obj.explanation,
@@ -23,6 +23,7 @@ def map_ai_analysis_to_dto(obj: models.AiAnalysis):
 
 def map_job_view_to_orm(obj: dto.JobView):
     return models.JobView(
+        id=obj.id,
         url=obj.job.url,
         external_id=obj.job.external_id,
         title=obj.job.title,
@@ -30,12 +31,13 @@ def map_job_view_to_orm(obj: dto.JobView):
         tags_raw=",".join(obj.job.tags) if obj.job.tags else None,
         source=obj.job.feed_name,
         ai_analisys=map_ai_analysis_to_orm(obj.ai) if obj.ai else None,
-        feed_name=obj.job.feed_name
+        feed_name=obj.job.feed_name,
+        is_hidden=obj.is_hidden
     )
 
 
 def map_job_view_to_dto(obj: models.JobView):
-    job = dto.FreelanceJob(
+    job = dto.FeedJob(
         title=obj.title,
         description=obj.description,
         source=obj.source,
@@ -48,14 +50,14 @@ def map_job_view_to_dto(obj: models.JobView):
     if "ai_analysis" not in inspect(obj).unloaded:
         ai = map_ai_analysis_to_dto(obj.ai_analysis)
 
+    page_data = PageData(is_closed=obj.is_closed, budget_text=obj.budget)
+
     return dto.JobView(
+        id=obj.id,
         job=job,
         priority=JobPriority(obj.priority),
-        human_priority=(
-            dto.JobPriority(obj.human_priority)
-            if obj.human_priority is not None else None
-        ),
-        ai=ai
+        ai=ai,
+        page_data=page_data
     )
 
 

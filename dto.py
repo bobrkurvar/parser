@@ -10,48 +10,23 @@ class JobPriority(IntEnum):
 
 
 @dataclass
-class FreelanceJob:
+class FeedJob:
     feed_name: str
     source: str
     external_id: int
     title: str
-    description: str
+    #description: str
     url: str
     tags: list[str]
     published_at: str | None = None
-    budget_text: str | None = None
+    #budget_text: str | None = None
 
 
 @dataclass
-class AIAnalysis:
-    explanation: str
-    confidence: float
-    priority: JobPriority | None = None
-    job_id: int | None = None
-
-
-@dataclass
-class JobView:
-    job: FreelanceJob
-    id: int | None = None
-    page_data: "ProjectData | None" = None
-    ai: AIAnalysis | None = None
-    priority: JobPriority = ai.priority
-    is_hidden: bool = False
-
-    def refresh_priority(self, priority: JobPriority):
-        self.priority = priority
-
-
-
-
-@dataclass
-class CollectResult:
-    all_cnt: int
-    passed_cnt: int
-    content_filter_cnt: int
-    exclude_stack_filter_cnt: int
-    jobs: list[JobView]
+class JobPageData:
+    is_closed: bool
+    budget_text: str | None
+    description: str
 
 
 @dataclass(slots=True)
@@ -62,13 +37,40 @@ class OfferRange:
 
 
 @dataclass
-class ProjectPageData:
-    budget_text: str | None
-    description: str
-    is_closed: bool
+class AIAnalysis:
+    explanation: str
+    confidence: float
+    priority: JobPriority
+    job_id: int | None = None
 
 
-@dataclass(slots=True)
-class ProjectData:
-    offer_range: OfferRange
-    page_data: ProjectPageData
+@dataclass
+class JobStaticData:
+    feed_job: FeedJob
+    priority: JobPriority
+    page_data: JobPageData
+    id: int | None = None
+    ai: AIAnalysis | None = None
+
+    @property
+    def is_hidden(self):
+        # if self.page_data is None:
+        #     raise ValueError("Page Data не собрана")
+        return self.page_data.is_closed or self.priority == JobPriority.HIDDEN
+
+
+@dataclass
+class ActiveJob:
+    static_data: JobStaticData
+    dynamic_data: OfferRange
+
+
+
+@dataclass
+class CollectResult:
+    all_cnt: int
+    passed_cnt: int
+    content_filter_cnt: int
+    exclude_stack_filter_cnt: int
+    jobs: list[ActiveJob]
+

@@ -388,7 +388,7 @@ class App(tk.Tk):
             job = job_view.job
             page = job_view.page_data
 
-            priority = job_view.final_priority
+            priority = job_view.priority
 
             tags_text = (
                 ", ".join(job.tags[:2])
@@ -451,9 +451,9 @@ class App(tk.Tk):
         job = job_view.job
         ai = job_view.ai
         page = job_view.page_data
-        priority = job_view.final_priority
+        priority = job_view.priority
 
-        self.selected_job = job
+        self.selected_job = job_view
 
         self.title_var.set(f"Название: {job.title}")
         self.feed_var.set(f"Лента: {job.feed_name}")
@@ -516,12 +516,19 @@ class App(tk.Tk):
         if self.selected_job is None:
             return
 
-        selected = self.tree.selection()
-        if not selected:
-            return
-
         mark_value = self.mark_var.get()
         if mark_value == -1:
+            return
+
+        if self.selected_job.id is None:
+            self.mark_status.config(
+                text="Ошибка: нет ID записи",
+                foreground="red",
+            )
+            return
+
+        selected = self.tree.selection()
+        if not selected:
             return
 
         item_id = selected[0]
@@ -532,8 +539,8 @@ class App(tk.Tk):
             foreground="black",
         )
 
-        self.backend.human_priority(
-            external_id=self.selected_job.external_id,
+        self.backend.update_priority(
+            job_id=self.selected_job.id,
             mark=mark_value,
             callback=lambda result: self.on_mark_saved(
                 result=result,
@@ -561,17 +568,17 @@ class App(tk.Tk):
             return
 
         job_view = self.jobs[int(item_id)]
-        job_view.human_priority = JobPriority(mark_value)
+        job_view.priority = JobPriority(mark_value)
 
         self.tree.set(
             item_id,
             "priority",
-            priority_text(job_view.final_priority),
+            priority_text(job_view.priority),
         )
 
         self.tree.item(
             item_id,
-            tags=(priority_tag(job_view.final_priority),),
+            tags=(priority_tag(job_view.priority),),
         )
 
         self.save_mark_btn.config(state="normal")
@@ -584,8 +591,8 @@ class App(tk.Tk):
         if self.selected_job is None:
             return
 
-        if self.selected_job.url:
-            webbrowser.open(self.selected_job.url)
+        if self.selected_job.job.url:
+            webbrowser.open(self.selected_job.job.url)
 
     def show_error(self, error: Exception) -> None:
         self.status_label.config(text="Ошибка")
