@@ -60,9 +60,6 @@ def get_is_closed(soup: BeautifulSoup) -> bool:
     return "Заказчик выбрал исполнителя" in status_text
 
 
-
-
-
 def parse_fl_job_page(html: str) -> JobPageData:
     soup = BeautifulSoup(html, "lxml")
     result = JobPageData(

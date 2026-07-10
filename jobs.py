@@ -5,6 +5,8 @@ from rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
 from infra.infra_html import parse_fl_job_page, offer_range
 from infra.infra_xml import parse_fl_rss
+from scraper_engine import get_pages
+
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ async def fetch_jobs(http_client):
 
 async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
     seen_external_ids, pending_analyze, jobs_to_save, page_cache = set(), [], [], {}
+    jobs_to_fetch = []
     async with uow:
         async for feed_name, job in fetch_jobs(http_client):
             if job.external_id in seen_external_ids:
@@ -37,13 +40,15 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
                 async with uow.savepoint():
                     await uow.db.read_one(JobStaticData, external_id=job.external_id, with_raise=True)
             except NotFoundError:
-                html_page = await http_client.fetch_project_page(job.url)
-                page_data = parse_fl_job_page(html_page)
-                page_cache[job.external_id] = page_data
-                if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
-                    pending_analyze.append(job)
-                else:
-                    jobs_to_save.append(JobStaticData(feed_job=job, priority=JobPriority.HIDDEN, page_data=page_data))
+                jobs_to_fetch.append(job)
+    results = await get_pages(client=http_client, jobs=jobs_to_fetch)
+    for job, html in results:
+        page_data = parse_fl_job_page(html)
+        page_cache[job.external_id] = page_data
+        if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
+            pending_analyze.append(job)
+        else:
+            jobs_to_save.append(JobStaticData(feed_job=job, priority=JobPriority.HIDDEN, page_data=page_data))
 
     analyses = await llm.analyze_jobs(pending_analyze)
 
@@ -118,3 +123,4 @@ async def load_jobs(http_client, llm, uow) -> list[JobStaticData]:
         uow=uow,
         page_cache=page_cache
     )
+
