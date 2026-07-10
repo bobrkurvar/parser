@@ -15,8 +15,14 @@ class KeyProvider:
             self._keys = []
 
     def get_key(self) -> str:
+        # if not self._keys:
+        #     raise ValueError("Нет доступных ключей для Gemini!")
+        key = self.keys.pop(0)
+        self.keys.append(key)
+        return key
+
+    @property
+    def keys(self):
         if not self._keys:
             raise ValueError("Нет доступных ключей для Gemini!")
-        key = self._keys.pop(0)
-        self._keys.append(key)
-        return key
+        return self._keys

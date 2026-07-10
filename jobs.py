@@ -46,7 +46,7 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         page_data = parse_fl_job_page(html)
         page_cache[job.external_id] = page_data
         if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
-            pending_analyze.append(job)
+            pending_analyze.append((job.title, page_data.description))
         else:
             jobs_to_save.append(JobStaticData(feed_job=job, priority=JobPriority.HIDDEN, page_data=page_data))
 
