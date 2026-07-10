@@ -67,7 +67,7 @@ def parse_fl_job_page(html: str) -> JobPageData:
         budget_text=get_budget_text(soup),
         is_closed=get_is_closed(soup),
     )
-    log.debug("Парсинг завершён: %s", result)
+    #log.debug("Парсинг завершён: %s", result)
     return result
 
 

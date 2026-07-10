@@ -4,7 +4,7 @@ import webbrowser
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
-from dto import JobPriority, JobView
+from dto import ActiveJob, JobPriority
 
 log = logging.getLogger(__name__)
 
@@ -67,8 +67,8 @@ class App(tk.Tk):
         self.title("Freelance Parser")
         self.geometry("1450x800")
 
-        self.jobs: list[JobView] = []
-        self.selected_job = None
+        self.jobs: list[ActiveJob] = []
+        self.selected_job: ActiveJob | None = None
         self.backend = backend
 
         self.create_widgets()
@@ -377,18 +377,15 @@ class App(tk.Tk):
         self.mark_status.config(text="")
         self.open_button.config(state="disabled")
 
-    def show_result(self, jobs: list[JobView]) -> None:
+    def show_result(self, jobs: list[ActiveJob]) -> None:
         self.jobs = jobs
 
-        # self.active_jobs_label.config(
-        #     text=f"Активных вакансий: {len(jobs)}",
-        # )
-
-        for index, job_view in enumerate(jobs):
-            job = job_view.job
-            page = job_view.page_data
-
-            priority = job_view.priority
+        for index, active_job in enumerate(jobs):
+            static_data = active_job.static_data
+            job = static_data.feed_job
+            page = static_data.page_data
+            offer_range = active_job.dynamic_data
+            priority = static_data.priority
 
             tags_text = (
                 ", ".join(job.tags[:2])
@@ -397,18 +394,12 @@ class App(tk.Tk):
             )
 
             responses_text = (
-                str(page.offer_range.responses_count)
-                if page is not None
-                    and page.offer_range.responses_count is not None
+                str(offer_range.responses_count)
+                if offer_range.responses_count is not None
                 else "-"
             )
 
-            budget_text = (
-                page.page_data.budget_text
-                if page is not None
-                   and page.page_data.budget_text
-                else "-"
-            )
+            budget_text = page.budget_text or "-"
 
             self.tree.insert(
                 "",
@@ -446,14 +437,16 @@ class App(tk.Tk):
             return
 
         item_id = selected[0]
-        job_view = self.jobs[int(item_id)]
+        active_job = self.jobs[int(item_id)]
 
-        job = job_view.job
-        ai = job_view.ai
-        page = job_view.page_data
-        priority = job_view.priority
+        static_data = active_job.static_data
+        job = static_data.feed_job
+        page = static_data.page_data
+        offer_range = active_job.dynamic_data
+        ai = static_data.ai
+        priority = static_data.priority
 
-        self.selected_job = job_view
+        self.selected_job = active_job
 
         self.title_var.set(f"Название: {job.title}")
         self.feed_var.set(f"Лента: {job.feed_name}")
@@ -461,28 +454,24 @@ class App(tk.Tk):
             f"Теги: {', '.join(job.tags) if job.tags else '-'}",
         )
         self.budget_var.set(
-            f"Бюджет: {job.budget_text or '-'}",
+            f"Бюджет: {page.budget_text or '-'}",
         )
         self.url_var.set(f"Ссылка: {job.url}")
 
-        if page is None:
-            self.responses_var.set("Отклики: данные не получены")
-        else:
-            responses_count = (
-                page.offer_range.responses_count
-                if page.offer_range.responses_count is not None
-                else "-"
-            )
+        responses_count = (
+            offer_range.responses_count
+            if offer_range.responses_count is not None
+            else "-"
+        )
 
-            price_range = format_price_range(
-                page.offer_range.response_price_min,
-                page.offer_range.response_price_max,
-            )
+        price_range = format_price_range(
+            offer_range.response_price_min,
+            offer_range.response_price_max,
+        )
 
-            self.responses_var.set(
-                f"Отклики: {responses_count}; "
-                f"цены: {price_range}",
-            )
+        self.responses_var.set(
+            f"Отклики: {responses_count}; цены: {price_range}",
+        )
 
         self.mark_var.set(
             priority.value
@@ -502,12 +491,16 @@ class App(tk.Tk):
             )
             self.details_text.insert(
                 tk.END,
-                f"Объяснение ИИ: {ai.explanation or '-'}\n",
+                f"Уверенность ИИ: {ai.confidence:.0%}\n",
+            )
+            self.details_text.insert(
+                tk.END,
+                f"Объяснение ИИ: {ai.explanation or '-'}\n\n",
             )
 
         self.details_text.insert(
             tk.END,
-            f"{job.description}",
+            page.description,
         )
 
         self.open_button.config(state="normal")
@@ -520,7 +513,9 @@ class App(tk.Tk):
         if mark_value == -1:
             return
 
-        if self.selected_job.id is None:
+        static_data = self.selected_job.static_data
+
+        if static_data.id is None:
             self.mark_status.config(
                 text="Ошибка: нет ID записи",
                 foreground="red",
@@ -540,7 +535,7 @@ class App(tk.Tk):
         )
 
         self.backend.update_priority(
-            job_id=self.selected_job.id,
+            job_id=static_data.id,
             mark=mark_value,
             callback=lambda result: self.on_mark_saved(
                 result=result,
@@ -550,10 +545,10 @@ class App(tk.Tk):
         )
 
     def on_mark_saved(
-        self,
-        result,
-        item_id: str,
-        mark_value: int,
+            self,
+            result,
+            item_id: str,
+            mark_value: int,
     ) -> None:
         if isinstance(result, Exception):
             self.save_mark_btn.config(state="normal")
@@ -561,24 +556,27 @@ class App(tk.Tk):
                 text="Ошибка БД",
                 foreground="red",
             )
-            log.exception(
+            log.error(
                 "Ошибка сохранения разметки: %s",
                 result,
+                exc_info=result,
             )
             return
 
-        job_view = self.jobs[int(item_id)]
-        job_view.priority = JobPriority(mark_value)
+        active_job = self.jobs[int(item_id)]
+        active_job.static_data.priority = JobPriority(mark_value)
+
+        priority = active_job.static_data.priority
 
         self.tree.set(
             item_id,
             "priority",
-            priority_text(job_view.priority),
+            priority_text(priority),
         )
 
         self.tree.item(
             item_id,
-            tags=(priority_tag(job_view.priority),),
+            tags=(priority_tag(priority),),
         )
 
         self.save_mark_btn.config(state="normal")
@@ -591,8 +589,10 @@ class App(tk.Tk):
         if self.selected_job is None:
             return
 
-        if self.selected_job.job.url:
-            webbrowser.open(self.selected_job.job.url)
+        url = self.selected_job.static_data.feed_job.url
+
+        if url:
+            webbrowser.open(url)
 
     def show_error(self, error: Exception) -> None:
         self.status_label.config(text="Ошибка")

@@ -7,7 +7,7 @@ from db.mapper import registry
 from jobs import load_jobs, read_active_jobs
 from core import conf
 from adapters.db_provider import DbProvider
-from dto import JobView, JobPriority
+from dto import JobStaticData, JobPriority
 
 
 class AsyncBackend:
@@ -81,13 +81,18 @@ class AsyncBackend:
 
         self.run_task(task_wrapper(), callback)
 
-    def update_priority(self, job_id: int, mark: int | str, callback):
+    def update_priority(
+        self,
+        job_id: int,
+        mark: int | str,
+        callback,
+    ):
         async def task_wrapper():
             priority = JobPriority(int(mark))
 
             async with self.uow:
                 return await self.uow.db.update(
-                    JobView,
+                    JobStaticData,
                     {"id": job_id},
                     priority=priority.value,
                     is_hidden=priority == JobPriority.HIDDEN,

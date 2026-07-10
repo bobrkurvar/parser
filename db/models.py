@@ -9,7 +9,7 @@ class Base(AsyncAttrs, DeclarativeBase):
     pass
 
 
-class JobView(Base):
+class JobStaticData(Base):
     __tablename__ = "job_data"
     id: Mapped[int] = mapped_column(primary_key=True)
     url: Mapped[str]

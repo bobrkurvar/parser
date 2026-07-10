@@ -15,11 +15,9 @@ class FeedJob:
     source: str
     external_id: int
     title: str
-    #description: str
     url: str
     tags: list[str]
     published_at: str | None = None
-    #budget_text: str | None = None
 
 
 @dataclass

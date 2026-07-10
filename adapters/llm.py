@@ -54,10 +54,11 @@ class GeminiAnalyzer:
         self._pool = asyncio.Queue()
         self.key_manager = KeyProvider()
         self._background_tasks = set()
+        if not self.key_manager.keys:
+            raise RuntimeError("Не найдено ни одного API-ключа Gemini")
+
         for key in self.key_manager.keys:
             self._pool.put_nowait(genai.Client(api_key=key))
-        #self.api_key = self.key_manager.get_key()
-        #self.client = genai.Client(api_key=self.api_key)
         target_technologies = ", ".join(TARGET_TECHNOLOGIES)
 
         self.system_instruction = textwrap.dedent(f"""
@@ -174,7 +175,7 @@ class GeminiAnalyzer:
             client = await self._pool.get()
             try:
                 response = await client.aio.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-2.5-flash-lite",
                     contents=(
                         "Проанализируй следующие заказы "
                         "и верни массив JSON:\n"
@@ -223,9 +224,9 @@ class GeminiAnalyzer:
 
     async def analyze_jobs(
         self,
-        jobs_to_analyze: list[FeedJob],
+        jobs_to_analyze: list[tuple[str, str]],
         batch_size: int = 15,
-    ) -> list[AIAnalysis]:
+    ) -> list[AIAnalysis | None]:
         if not jobs_to_analyze:
             return []
 

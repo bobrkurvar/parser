@@ -2,44 +2,46 @@ import dto
 from db import models
 from sqlalchemy import inspect
 
-from dto import JobPriority, PageData
 
-
-def map_ai_analysis_to_orm(obj: dto.AIAnalysis):
+def map_ai_analysis_to_orm(obj: dto.AIAnalysis) -> models.AIAnalysis:
     return models.AIAnalysis(
         job_id=obj.job_id,
         explanation=obj.explanation,
         confidence=obj.confidence,
+        priority=obj.priority
     )
 
 
-def map_ai_analysis_to_dto(obj: models.AIAnalysis):
+def map_ai_analysis_to_dto(obj: models.AIAnalysis) -> dto.AIAnalysis:
     return dto.AIAnalysis(
         job_id=obj.job_id,
         explanation=obj.explanation,
         confidence=obj.confidence,
+        priority=dto.JobPriority(obj.priority)
     )
 
 
-def map_job_view_to_orm(obj: dto.JobView):
-    return models.JobView(
+def map_job_static_data_to_orm(obj: dto.JobStaticData) -> models.JobStaticData:
+    return models.JobStaticData(
         id=obj.id,
-        url=obj.job.url,
-        external_id=obj.job.external_id,
-        title=obj.job.title,
-        description=obj.job.description,
-        tags_raw=",".join(obj.job.tags) if obj.job.tags else None,
-        source=obj.job.feed_name,
-        ai_analisys=map_ai_analysis_to_orm(obj.ai) if obj.ai else None,
-        feed_name=obj.job.feed_name,
-        is_hidden=obj.is_hidden
+        url=obj.feed_job.url,
+        external_id=obj.feed_job.external_id,
+        title=obj.feed_job.title,
+        description=obj.page_data.description,
+        tags_raw=",".join(obj.feed_job.tags) if obj.feed_job.tags else None,
+        source=obj.feed_job.source,
+        ai_analysis=map_ai_analysis_to_orm(obj.ai) if obj.ai else None,
+        feed_name=obj.feed_job.feed_name,
+        is_hidden=obj.is_hidden,
+        budget=obj.page_data.budget_text,
+        is_closed=obj.page_data.is_closed,
+        priority=obj.priority
     )
 
 
-def map_job_view_to_dto(obj: models.JobView):
+def map_job_static_data_to_dto(obj: models.JobStaticData) -> dto.JobStaticData:
     job = dto.FeedJob(
         title=obj.title,
-        description=obj.description,
         source=obj.source,
         external_id=obj.external_id,
         url=obj.url,
@@ -47,15 +49,15 @@ def map_job_view_to_dto(obj: models.JobView):
         feed_name=obj.feed_name
     )
     ai = None
-    if "ai_analysis" not in inspect(obj).unloaded:
+    if "ai_analysis" not in inspect(obj).unloaded and obj.ai_analysis is not None:
         ai = map_ai_analysis_to_dto(obj.ai_analysis)
 
-    page_data = PageData(is_closed=obj.is_closed, budget_text=obj.budget)
+    page_data = dto.JobPageData(is_closed=obj.is_closed, budget_text=obj.budget, description=obj.description)
 
-    return dto.JobView(
+    return dto.JobStaticData(
         id=obj.id,
-        job=job,
-        priority=JobPriority(obj.priority),
+        feed_job=job,
+        priority=dto.JobPriority(obj.priority),
         ai=ai,
         page_data=page_data
     )
@@ -92,4 +94,4 @@ class MapperRegistry:
 
 
 registry = MapperRegistry()
-registry.register(dto_cls=dto.JobView, orm_model=models.JobView, to_orm=map_job_view_to_orm, to_dto=map_job_view_to_dto)
+registry.register(dto_cls=dto.JobStaticData, orm_model=models.JobStaticData, to_orm=map_job_static_data_to_orm, to_dto=map_job_static_data_to_dto)

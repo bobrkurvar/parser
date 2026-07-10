@@ -1,5 +1,5 @@
 from filters import analyze_basic
-from dto import JobStaticData, JobPageData, JobPriority
+from dto import JobStaticData, JobPageData, JobPriority, ActiveJob
 import logging
 from rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
@@ -29,7 +29,7 @@ async def fetch_jobs(http_client):
 
 
 async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
-    seen_external_ids, pending_analyze, jobs_to_save, page_cache = set(), [], [], {}
+    seen_external_ids, pending_analyze_data, pending_analyze_jobs, jobs_to_save, page_cache = set(), [], [], [], {}
     jobs_to_fetch = []
     async with uow:
         async for feed_name, job in fetch_jobs(http_client):
@@ -46,13 +46,14 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         page_data = parse_fl_job_page(html)
         page_cache[job.external_id] = page_data
         if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
-            pending_analyze.append((job.title, page_data.description))
+            pending_analyze_data.append((job.title, page_data.description))
+            pending_analyze_jobs.append(job)
         else:
             jobs_to_save.append(JobStaticData(feed_job=job, priority=JobPriority.HIDDEN, page_data=page_data))
 
-    analyses = await llm.analyze_jobs(pending_analyze)
+    analyses = await llm.analyze_jobs(pending_analyze_data)
 
-    for job, analysis in zip(pending_analyze, analyses):
+    for job, analysis in zip(pending_analyze_jobs, analyses):
         if analysis is None:
             log.error("Нет анализа для данной работы: %s", job)
             continue
@@ -76,42 +77,43 @@ async def read_active_jobs(
     http_client,
     uow,
     page_cache: dict[int, JobPageData] | None = None,
-) -> list[JobStaticData]:
+) -> list[ActiveJob]:
+    # Запросы для получения offer тоже нужно через конкурентные запросы
     page_cache = page_cache or {}
     async with uow:
-        active_jobs = await uow.db.read(JobStaticData, is_hidden=False)
-    valid_jobs: list[JobStaticData] = []
+        active_jobs: tuple[JobStaticData] = await uow.db.read(JobStaticData, is_hidden=False)
+    valid_jobs: list[ActiveJob] = []
     hide_jobs_ids = []
 
-    for job_view in active_jobs:
-        external_id = job_view.job.external_id
+    for active_job in active_jobs:
+        external_id = active_job.feed_job.external_id
         page_data = page_cache.get(external_id)
         if page_data is None:
-            html_page = await http_client.fetch_project_page(job_view.job.url)
+            html_page = await http_client.fetch_project_page(active_job.feed_job.url)
             page_data = parse_fl_job_page(html_page)
 
         if not page_data.is_closed:
             fetch_data = await http_client.fetch_offer_range(project_id=external_id)
             offer_data = offer_range(fetch_data)
-            log.debug("offer range data: %s page data: %s", offer_data, page_data)
-            job_view.page_data, job_view.offer_range = page_data, offer_data
-            valid_jobs.append(job_view)
+            #log.debug("offer range data: %s page data: %s", offer_data, page_data)
+            active_job.page_data = page_data
+            valid_jobs.append(ActiveJob(static_data=active_job, dynamic_data=offer_data))
         else:
-            hide_jobs_ids.append(job_view.id)
+            hide_jobs_ids.append(active_job.id)
 
     if hide_jobs_ids:
         async with uow:
-            await uow.db.update(JobStaticData, {"id": hide_jobs_ids}, is_hidden=True, is_closed=True)
+            await uow.db.update(JobStaticData, {"id": hide_jobs_ids}, is_closed=True)
 
     valid_jobs.sort(
-        key=lambda jv: jv.priority,
+        key=lambda job: job.static_data.priority,
         reverse=True,
     )
 
     return valid_jobs
 
 
-async def load_jobs(http_client, llm, uow) -> list[JobStaticData]:
+async def load_jobs(http_client, llm, uow) -> list[ActiveJob]:
     page_cache = await collect_pipeline(
         http_client=http_client,
         llm=llm,

@@ -2,7 +2,7 @@ import asyncio
 from functools import partial
 from dto import FeedJob
 
-async def get_pages(client, jobs: list[FeedJob], batch_size: int = 5, static: bool = False):
+async def get_pages(client, jobs: list[FeedJob], batch_size: int = 10, static: bool = False):
     async def fetch_with_context(job):
         html = await client.fetch_project_page(job.url)
         return job, html
@@ -15,7 +15,20 @@ async def get_pages(client, jobs: list[FeedJob], batch_size: int = 5, static: bo
     return await execute_batch(tasks_to_run, batch_size, static)
 
 
-async def execute_batch(factories: list, batch_size: int = 5, static: bool = False):
+async def get_offer_data(client, jobs: list[FeedJob], batch_size: int = 10, static: bool = False):
+    async def fetch_with_context(job):
+        offer_data = await client.fetch_offer_range(project_id=job.external_id)
+        return job, offer_data
+
+    tasks_to_run = [
+        partial(fetch_with_context, job)
+        for job in jobs
+    ]
+
+    return await execute_batch(tasks_to_run, batch_size, static)
+
+
+async def execute_batch(factories: list, batch_size: int = 10, static: bool = False):
     # tasks_to_run = [
     #     partial(client.get_vacancy, vac.id)
     #     for vac in vacancies

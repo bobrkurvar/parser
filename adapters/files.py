@@ -13,13 +13,13 @@ class KeyProvider:
         except FileNotFoundError:
             print(f"ВНИМАНИЕ: Файл с ключами {self.filepath} не найден!")
             self._keys = []
-
-    def get_key(self) -> str:
-        # if not self._keys:
-        #     raise ValueError("Нет доступных ключей для Gemini!")
-        key = self.keys.pop(0)
-        self.keys.append(key)
-        return key
+    #
+    # def get_key(self) -> str:
+    #     # if not self._keys:
+    #     #     raise ValueError("Нет доступных ключей для Gemini!")
+    #     key = self.keys.pop(0)
+    #     self.keys.append(key)
+    #     return key
 
     @property
     def keys(self):
