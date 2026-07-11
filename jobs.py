@@ -5,7 +5,7 @@ from rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
 from infra.infra_html import parse_fl_job_page, offer_range
 from infra.infra_xml import parse_fl_rss
-from scraper_engine import get_pages
+from scraper_engine import get_pages, get_offer_data
 
 
 log = logging.getLogger(__name__)
@@ -83,23 +83,34 @@ async def read_active_jobs(
     async with uow:
         active_jobs: tuple[JobStaticData] = await uow.db.read(JobStaticData, is_hidden=False)
     valid_jobs: list[ActiveJob] = []
+    jobs_to_offer_range: list[JobStaticData] = []
+    jobs_to_fetch_page: list[JobStaticData] = []
     hide_jobs_ids = []
 
     for active_job in active_jobs:
         external_id = active_job.feed_job.external_id
         page_data = page_cache.get(external_id)
         if page_data is None:
-            html_page = await http_client.fetch_project_page(active_job.feed_job.url)
-            page_data = parse_fl_job_page(html_page)
-
-        if not page_data.is_closed:
-            fetch_data = await http_client.fetch_offer_range(project_id=external_id)
-            offer_data = offer_range(fetch_data)
-            #log.debug("offer range data: %s page data: %s", offer_data, page_data)
+            jobs_to_fetch_page.append(active_job)
+        elif not page_data.is_closed:
             active_job.page_data = page_data
-            valid_jobs.append(ActiveJob(static_data=active_job, dynamic_data=offer_data))
+            jobs_to_offer_range.append(active_job)
         else:
             hide_jobs_ids.append(active_job.id)
+
+    page_results = await get_pages(client=http_client, jobs=jobs_to_fetch_page)
+    for job, html in page_results:
+        page_data = parse_fl_job_page(html)
+        if not page_data.is_closed:
+            job.page_data = page_data
+            jobs_to_offer_range.append(job)
+        else:
+            hide_jobs_ids.append(job.id)
+
+    offer_results = await get_offer_data(client=http_client, jobs=jobs_to_offer_range)
+    for job, offer_data in offer_results:
+        valid_jobs.append(ActiveJob(static_data=job, dynamic_data=offer_range(offer_data)))
+
 
     if hide_jobs_ids:
         async with uow:

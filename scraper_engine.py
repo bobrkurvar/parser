@@ -1,10 +1,11 @@
 import asyncio
 from functools import partial
-from dto import FeedJob
+from dto import FeedJob, JobStaticData
 
-async def get_pages(client, jobs: list[FeedJob], batch_size: int = 10, static: bool = False):
-    async def fetch_with_context(job):
-        html = await client.fetch_project_page(job.url)
+async def get_pages(client, jobs: list[JobStaticData | FeedJob], batch_size: int = 20, static: bool = False):
+    async def fetch_with_context(job: JobStaticData | FeedJob):
+        url = job.feed_job.url if isinstance(job, JobStaticData) else job.url
+        html = await client.fetch_project_page(url)
         return job, html
 
     tasks_to_run = [
@@ -15,9 +16,9 @@ async def get_pages(client, jobs: list[FeedJob], batch_size: int = 10, static: b
     return await execute_batch(tasks_to_run, batch_size, static)
 
 
-async def get_offer_data(client, jobs: list[FeedJob], batch_size: int = 10, static: bool = False):
-    async def fetch_with_context(job):
-        offer_data = await client.fetch_offer_range(project_id=job.external_id)
+async def get_offer_data(client, jobs: list[JobStaticData], batch_size: int = 20, static: bool = False):
+    async def fetch_with_context(job: JobStaticData):
+        offer_data = await client.fetch_offer_range(project_id=job.feed_job.external_id)
         return job, offer_data
 
     tasks_to_run = [
