@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import IntEnum
+from datetime import datetime
 
 
 class JobPriority(IntEnum):
@@ -17,7 +18,7 @@ class FeedJob:
     title: str
     url: str
     tags: list[str]
-    published_at: str | None = None
+    published_at: str | datetime | None = None
 
 
 @dataclass
@@ -52,8 +53,6 @@ class JobStaticData:
 
     @property
     def is_hidden(self):
-        # if self.page_data is None:
-        #     raise ValueError("Page Data не собрана")
         return self.page_data.is_closed or self.priority == JobPriority.HIDDEN
 
 

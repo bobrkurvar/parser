@@ -24,10 +24,7 @@ class JobStaticData(Base):
     priority: Mapped[int]
     is_hidden: Mapped[bool] = mapped_column(default=False) # Денормализованное поле для удобной фильтрации
     is_closed: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ai_analysis: Mapped["AIAnalysis"] = relationship("AIAnalysis")
 
     __table_args__ = (

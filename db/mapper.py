@@ -1,6 +1,7 @@
 import dto
 from db import models
 from sqlalchemy import inspect
+from email.utils import parsedate_to_datetime
 
 
 def map_ai_analysis_to_orm(obj: dto.AIAnalysis) -> models.AIAnalysis:
@@ -35,7 +36,8 @@ def map_job_static_data_to_orm(obj: dto.JobStaticData) -> models.JobStaticData:
         is_hidden=obj.is_hidden,
         budget=obj.page_data.budget_text,
         is_closed=obj.page_data.is_closed,
-        priority=obj.priority
+        priority=obj.priority,
+        published_at=parsedate_to_datetime(obj.feed_job.published_at) if obj.feed_job.published_at else None
     )
 
 
@@ -46,7 +48,8 @@ def map_job_static_data_to_dto(obj: models.JobStaticData) -> dto.JobStaticData:
         external_id=obj.external_id,
         url=obj.url,
         tags=obj.tags_raw.split(",") if obj.tags_raw else [],
-        feed_name=obj.feed_name
+        feed_name=obj.feed_name,
+        published_at=obj.published_at
     )
     ai = None
     if "ai_analysis" not in inspect(obj).unloaded and obj.ai_analysis is not None:
