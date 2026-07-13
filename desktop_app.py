@@ -1,5 +1,6 @@
 import logging
 import tkinter as tk
+from datetime import datetime
 import webbrowser
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
@@ -196,6 +197,7 @@ class App(tk.Tk):
 
         self.title_var = tk.StringVar(value="Название: ")
         self.feed_var = tk.StringVar(value="Лента: ")
+        self.published_at_var = tk.StringVar(value="Опубликовано: ")
         self.tags_var = tk.StringVar(value="Теги: ")
         self.budget_var = tk.StringVar(value="Бюджет: ")
         self.responses_var = tk.StringVar(value="Отклики: ")
@@ -211,6 +213,11 @@ class App(tk.Tk):
         ttk.Label(
             info_frame,
             textvariable=self.feed_var,
+        ).pack(anchor="w", pady=2)
+
+        ttk.Label(
+            info_frame,
+            textvariable=self.published_at_var,
         ).pack(anchor="w", pady=2)
 
         ttk.Label(
@@ -365,6 +372,7 @@ class App(tk.Tk):
 
         self.title_var.set("Название: ")
         self.feed_var.set("Лента: ")
+        self.published_at_var.set("Опубликовано: ")
         self.tags_var.set("Теги: ")
         self.budget_var.set("Бюджет: ")
         self.responses_var.set("Отклики: ")
@@ -450,6 +458,16 @@ class App(tk.Tk):
 
         self.title_var.set(f"Название: {job.title}")
         self.feed_var.set(f"Лента: {job.feed_name}")
+
+        if isinstance(job.published_at, datetime):
+            published_at_text = job.published_at.strftime("%d.%m.%Y %H:%M")
+        else:
+            published_at_text = job.published_at or "-"
+
+        self.published_at_var.set(
+            f"Опубликовано: {published_at_text}",
+        )
+
         self.tags_var.set(
             f"Теги: {', '.join(job.tags) if job.tags else '-'}",
         )
