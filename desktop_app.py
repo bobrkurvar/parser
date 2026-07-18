@@ -4,6 +4,7 @@ from datetime import datetime
 import webbrowser
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
+from queue import Queue, Empty
 
 from dto import ActiveJob, JobPriority
 
@@ -71,8 +72,24 @@ class App(tk.Tk):
         self.jobs: list[ActiveJob] = []
         self.selected_job: ActiveJob | None = None
         self.backend = backend
-
+        self.callback_queue = Queue()
         self.create_widgets()
+        self.after(50, self.process_callbacks)
+
+    def enqueue_callback(self, callback, *args, **kwargs):
+        self.callback_queue.put((callback, args, kwargs))
+
+
+    def process_callbacks(self) -> None:
+        try:
+            while True:
+                callback, args, kwargs = self.callback_queue.get_nowait()
+                callback(*args, **kwargs)
+        except Empty:
+            pass
+
+        self.after(50, self.process_callbacks)
+
 
     def create_widgets(self) -> None:
         top_frame = ttk.Frame(self, padding=8)
@@ -563,10 +580,10 @@ class App(tk.Tk):
         )
 
     def on_mark_saved(
-            self,
-            result,
-            item_id: str,
-            mark_value: int,
+        self,
+        result,
+        item_id: str,
+        mark_value: int,
     ) -> None:
         if isinstance(result, Exception):
             self.save_mark_btn.config(state="normal")

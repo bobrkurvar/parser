@@ -1,7 +1,7 @@
 import logging
 from functools import wraps
-from collections.abc import Collection
-from httpx import AsyncClient, ConnectError
+from dto import RateLimitError, NotFoundError
+from httpx import AsyncClient, ConnectError, HTTPStatusError
 
 log = logging.getLogger(__name__)
 
@@ -55,13 +55,24 @@ class HttpClient:
         params: dict | None = None,
         headers: dict | None = None,
     ):
-        response = await self._client.get(
-            url,
-            params=params,
-            headers=headers,
-        )
-        response.raise_for_status()
-        return response
+        try:
+            response = await self._client.get(
+                url,
+                params=params,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response
+
+        except HTTPStatusError as exc:
+            status_code = exc.response.status_code
+
+            if status_code == 404:
+                raise NotFoundError(f"Ресурс не найден: {url}") from exc
+
+            if status_code == 429:
+                raise RateLimitError(f"Rate limit: {url}") from exc
+
 
     async def fetch_rss(
         self,

@@ -41,7 +41,7 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
                     await uow.db.read_one(JobStaticData, external_id=job.external_id, with_raise=True)
             except NotFoundError:
                 jobs_to_fetch.append(job)
-    results = await get_pages(client=http_client, jobs=jobs_to_fetch)
+    results, _ = await get_pages(client=http_client, jobs=jobs_to_fetch)
     for job, html in results:
         page_data = parse_fl_job_page(html)
         page_cache[job.external_id] = page_data
@@ -81,7 +81,7 @@ async def read_active_jobs(
     # Запросы для получения offer тоже нужно через конкурентные запросы
     page_cache = page_cache or {}
     async with uow:
-        active_jobs: tuple[JobStaticData] = await uow.db.read(JobStaticData, is_hidden=False)
+        active_jobs: tuple[JobStaticData] = await uow.db.read(JobStaticData, loaded="ai_analysis", is_hidden=False)
     valid_jobs: list[ActiveJob] = []
     jobs_to_offer_range: list[JobStaticData] = []
     jobs_to_fetch_page: list[JobStaticData] = []
@@ -98,7 +98,8 @@ async def read_active_jobs(
         else:
             hide_jobs_ids.append(active_job.id)
 
-    page_results = await get_pages(client=http_client, jobs=jobs_to_fetch_page)
+    page_results, failed = await get_pages(client=http_client, jobs=jobs_to_fetch_page)
+    hide_jobs_ids.extend(job.id for job in failed)
     for job, html in page_results:
         page_data = parse_fl_job_page(html)
         if not page_data.is_closed:
@@ -107,14 +108,15 @@ async def read_active_jobs(
         else:
             hide_jobs_ids.append(job.id)
 
-    offer_results = await get_offer_data(client=http_client, jobs=jobs_to_offer_range)
+    offer_results, failed = await get_offer_data(client=http_client, jobs=jobs_to_offer_range)
+    hide_jobs_ids.extend(job.id for job in failed)
     for job, offer_data in offer_results:
         valid_jobs.append(ActiveJob(static_data=job, dynamic_data=offer_range(offer_data)))
 
 
     if hide_jobs_ids:
         async with uow:
-            await uow.db.update(JobStaticData, {"id": hide_jobs_ids}, is_closed=True)
+            await uow.db.update(JobStaticData, {"id": hide_jobs_ids}, is_closed=True, is_hidden=True)
 
     valid_jobs.sort(
         key=lambda job: job.static_data.priority,
