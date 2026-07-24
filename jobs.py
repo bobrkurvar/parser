@@ -119,7 +119,10 @@ async def read_active_jobs(
             await uow.db.update(JobStaticData, {"id": hide_jobs_ids}, is_closed=True, is_hidden=True)
 
     valid_jobs.sort(
-        key=lambda job: job.static_data.priority,
+        key=lambda job: (
+            job.static_data.priority,
+            job.static_data.feed_job.published_at,
+        ),
         reverse=True,
     )
 

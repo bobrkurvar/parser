@@ -1,7 +1,7 @@
 from google import genai
 from pydantic import BaseModel, Field
-from dto import AIAnalysis, JobPriority, FeedJob
-from literals import SYSTEM_INSTRUCTION
+from dto import AIAnalysis, JobPriority
+from literals import SYSTEM_INSTRUCTION, SCHEMA_EXPLANATION, SCHEMA_CONFIDENCE, TARGET_TECHNOLOGIES
 import asyncio
 import logging
 from .files import KeyProvider
@@ -9,45 +9,12 @@ import textwrap
 
 log = logging.getLogger(__name__)
 
-TARGET_TECHNOLOGIES = [
-    "Python",
-    "FastAPI",
-    "Django",
-    "Flask",
-    "SQLAlchemy",
-    "TaskIQ",
-    "Telegram Bot API",
-    "Aiogram",
-    "Selenium",
-    "Scrapy",
-    "Pandas",
-    "REST API",
-]
 
 class GeminiSchema(BaseModel):
     batch_index: int = Field(description="Номер заказа из поля ID во входной пачке.")
     priority_value: int = Field(description="Итоговый приоритет заказа: 0 — HIDDEN, 1 — LOW, 2 — MEDIUM, 3 — HIGH.")
-    explanation: str = Field(
-        description=(
-            "Кратко объясни выбранный приоритет на русском языке. "
-            "Укажи только решающие признаки из текста заказа. "
-            "Не приписывай заказу технологии, функциональность "
-            "или ограничения, которых в описании нет."
-        ),
-    )
-    confidence: float = Field(
-        description=(
-            "Уверенность от 0.0 до 1.0 в том, что выбран именно верный "
-            "приоритет на основании текста заказа. "
-            "Это не оценка бюджета, качества заказа, его сложности "
-            "или вероятности написания кода. "
-            "0.90–1.00 используй только при прямых и однозначных признаках "
-            "категории. "
-            "Если описание неполное, допускает несколько приоритетов "
-            "или вывод основан на косвенных признаках — используй значение "
-            "ниже 0.90. Не ставь 1.00 по умолчанию."
-        ),
-    )
+    explanation: str = Field(description=SCHEMA_EXPLANATION)
+    confidence: float = Field(description=SCHEMA_CONFIDENCE)
 
 
 class GeminiAnalyzer:

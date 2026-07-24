@@ -1,6 +1,6 @@
 import logging
 from functools import wraps
-from dto import RateLimitError, NotFoundError
+from exceptions import RateLimitError, ResourceNotFoundError
 from httpx import AsyncClient, ConnectError, HTTPStatusError
 
 log = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class HttpClient:
             status_code = exc.response.status_code
 
             if status_code == 404:
-                raise NotFoundError(f"Ресурс не найден: {url}") from exc
+                raise ResourceNotFoundError(f"Ресурс не найден: {url}") from exc
 
             if status_code == 429:
                 raise RateLimitError(f"Rate limit: {url}") from exc

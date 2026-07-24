@@ -71,10 +71,3 @@ class CollectResult:
     exclude_stack_filter_cnt: int
     jobs: list[ActiveJob]
 
-
-class NotFoundError(Exception):
-    pass
-
-
-class RateLimitError(Exception):
-    pass
