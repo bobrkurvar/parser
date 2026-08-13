@@ -27,7 +27,7 @@ def parse_fl_rss(
     root = ET.fromstring(xml_text)
 
     jobs: list[FeedJob] = []
-
+    #link = None
     for item in root.findall(".//item"):
         title = clean_html(item.findtext("title", default=""))
         description = clean_html(
@@ -62,5 +62,5 @@ def parse_fl_rss(
             )
         )
 
-    log.debug("Всего заказов: %d", len(jobs))
+    #log.debug("Всего заказов: %d по url %s", len(jobs), link)
     return jobs

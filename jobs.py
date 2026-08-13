@@ -41,6 +41,7 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
                     await uow.db.read_one(JobStaticData, external_id=job.external_id, with_raise=True)
             except NotFoundError:
                 jobs_to_fetch.append(job)
+    log.debug("Новых заказов для анализа: %s", len(jobs_to_fetch))
     results, _ = await get_pages(client=http_client, jobs=jobs_to_fetch)
     for job, html in results:
         page_data = parse_fl_job_page(html)
@@ -70,6 +71,7 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         async with uow:
             await uow.db.create(seq_data=jobs_to_save)
 
+    log.debug("Страниц кэшированных: %s", len(page_cache))
     return page_cache
 
 

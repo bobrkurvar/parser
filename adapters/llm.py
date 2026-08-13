@@ -45,7 +45,7 @@ class GeminiAnalyzer:
         return "\n---\n".join(batch_text_parts)
 
     async def _cooldown_client(self, client: genai.Client):
-        log.warning("Ключ поймал ошибку (вероятно 429). Уходит на паузу 60 сек...")
+        #log.warning("Ключ поймал ошибку (вероятно 429). Уходит на паузу 60 сек...")
         await asyncio.sleep(60)
         self._pool.put_nowait(client)
         log.debug("Ключ вернулся в пул.")
@@ -58,7 +58,7 @@ class GeminiAnalyzer:
             client = await self._pool.get()
             try:
                 response = await client.aio.models.generate_content(
-                    model="gemini-2.5-flash-lite",
+                    model="gemini-2.5-flash",
                     contents=(
                         "Проанализируй следующие заказы "
                         "и верни массив JSON:\n"
@@ -94,8 +94,8 @@ class GeminiAnalyzer:
                 self._pool.put_nowait(client)
                 return parsed_results
 
-            except Exception:
-                log.exception("Ошибка запроса к Gemini.")
+            except Exception as exc:
+                log.error("%s", exc)
                 retries += 1
                 task = asyncio.create_task(self._cooldown_client(client))
                 self._background_tasks.add(task)

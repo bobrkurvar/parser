@@ -10,11 +10,6 @@ def get_job_url(job: JobStaticData | FeedJob) -> str:
     return job.feed_job.url if isinstance(job, JobStaticData) else job.url
 
 async def get_pages(client, jobs: list[JobStaticData | FeedJob], batch_size: int = 20, static: bool = False):
-    # async def fetch_with_context(job: JobStaticData | FeedJob):
-    #     url = job.feed_job.url if isinstance(job, JobStaticData) else job.url
-    #     html = await client.fetch_project_page(url)
-    #     return job, html
-
     tasks_to_run = [
         (job, partial(client.fetch_project_page, get_job_url(job)))
         for job in jobs
@@ -25,10 +20,6 @@ async def get_pages(client, jobs: list[JobStaticData | FeedJob], batch_size: int
 
 
 async def get_offer_data(client, jobs: list[JobStaticData], batch_size: int = 20, static: bool = False):
-    # async def fetch_with_context(job: JobStaticData):
-    #     offer_data = await client.fetch_offer_range(project_id=job.feed_job.external_id)
-    #     return job, offer_data
-
     tasks_to_run = [
         (job, partial(client.fetch_offer_range, project_id=job.feed_job.external_id))
         for job in jobs
@@ -61,8 +52,8 @@ async def execute_batch(factories: list, batch_size: int = 10, static: bool = Fa
                 rate_limit_hit = True
                 items_to_retry.append((context, factory))
 
-            elif isinstance(result, ResourceNotFoundError):
-                failed_results.append(context)
+            # elif isinstance(result, ResourceNotFoundError):
+            #     failed_results.append(context)
 
             elif isinstance(result, Exception):
                 log.warning(
@@ -71,9 +62,10 @@ async def execute_batch(factories: list, batch_size: int = 10, static: bool = Fa
                     result,
                     exc_info=(type(result), result, result.__traceback__),
                 )
+                failed_results.append(context)
 
             else:
-                successful_results.append(result)
+                successful_results.append((context, result))
                 successful_count += 1
 
         if rate_limit_hit:

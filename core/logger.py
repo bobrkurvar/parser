@@ -13,6 +13,11 @@ class IgnoreFilter(logging.Filter):
         return True
 
 
+def mute_libraries_loggers():
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
 def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -27,7 +32,7 @@ def setup_logging():
     if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
         console_handler.addFilter(IgnoreFilter())
         logger.addHandler(console_handler)
-    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    mute_libraries_loggers()
 
     logger.addFilter(IgnoreFilter())
 

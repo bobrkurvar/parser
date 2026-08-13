@@ -73,6 +73,8 @@ class HttpClient:
             if status_code == 429:
                 raise RateLimitError(f"Rate limit: {url}") from exc
 
+            raise
+
 
     async def fetch_rss(
         self,
