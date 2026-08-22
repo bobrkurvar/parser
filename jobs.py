@@ -5,7 +5,6 @@ from rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
 from infra.infra_html import parse_fl_job_page, offer_range
 from infra.infra_xml import parse_fl_rss
-from scraper_engine import get_pages, get_offer_data
 
 
 log = logging.getLogger(__name__)
@@ -42,7 +41,8 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
             except NotFoundError:
                 jobs_to_fetch.append(job)
     log.debug("Новых заказов для анализа: %s", len(jobs_to_fetch))
-    results, _ = await get_pages(client=http_client, jobs=jobs_to_fetch)
+    #results, _ = await get_pages(client=http_client, jobs=jobs_to_fetch)
+    results, _ = await http_client.fetch_pages(jobs=jobs_to_fetch)
     for job, html in results:
         page_data = parse_fl_job_page(html)
         page_cache[job.external_id] = page_data
@@ -100,8 +100,9 @@ async def read_active_jobs(
         else:
             hide_jobs_ids.append(active_job.id)
 
-    page_results, failed = await get_pages(client=http_client, jobs=jobs_to_fetch_page)
-    hide_jobs_ids.extend(job.id for job in failed)
+    #page_results, failed = await get_pages(client=http_client, jobs=jobs_to_fetch_page)
+    page_results, failed = await http_client.fetch_pages(jobs=jobs_to_fetch_page)
+    hide_jobs_ids.extend(job.id for job, _ in failed)
     for job, html in page_results:
         page_data = parse_fl_job_page(html)
         if not page_data.is_closed:
@@ -110,8 +111,9 @@ async def read_active_jobs(
         else:
             hide_jobs_ids.append(job.id)
 
-    offer_results, failed = await get_offer_data(client=http_client, jobs=jobs_to_offer_range)
-    hide_jobs_ids.extend(job.id for job in failed)
+    #offer_results, failed = await get_offer_data(client=http_client, jobs=jobs_to_offer_range)
+    offer_results, failed = await http_client.fetch_offer_data(jobs=jobs_to_offer_range)
+    hide_jobs_ids.extend(job.id for job, _ in failed)
     for job, offer_data in offer_results:
         valid_jobs.append(ActiveJob(static_data=job, dynamic_data=offer_range(offer_data)))
 

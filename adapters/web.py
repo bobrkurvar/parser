@@ -1,33 +1,15 @@
 import logging
-from functools import wraps
 from exceptions import RateLimitError, ResourceNotFoundError
 from httpx import AsyncClient, ConnectError, HTTPStatusError
+from dto import FeedJob, JobStaticData
+from scraper_engine import Scraper, Factory
 
 log = logging.getLogger(__name__)
 
 
-def handle_ext_api(func):
-    @wraps(func)
-    async def wrapper(self, *args, **kwargs):
-        try:
-            return await func(self, *args, **kwargs)
-        except ConnectError:
-            log.warning("поключение не установлено")
-
-    return wrapper
-
-
-def add_exception_handler(cls):
-    api_methods = ["generate_image"]
-    for attr_name in dir(cls):
-        attr = getattr(cls, attr_name)
-        if attr in api_methods:
-            setattr(cls, attr_name, handle_ext_api(attr))
-    return cls
-
-
 class HttpClient:
     BASE_URL = "https://www.fl.ru"
+    _scraper = Scraper(retry_on=RateLimitError, decrease_on=RateLimitError, failed_on=ResourceNotFoundError)
 
     def __init__(self, url=None, app=None):
         self._url = url
@@ -75,6 +57,33 @@ class HttpClient:
 
             raise
 
+    @staticmethod
+    def _get_job_url(job: JobStaticData | FeedJob) -> str:
+        return job.feed_job.url if isinstance(job, JobStaticData) else job.url
+
+
+    async def fetch_project_page(self, project_url: str) -> str:
+        return (await self._get(project_url)).text
+
+
+    async def fetch_pages(self, jobs: list[JobStaticData | FeedJob], batch_size: int = 20, static: bool = False):
+        factories = [Factory(self.fetch_project_page, self._get_job_url(job), context=job) for job in jobs]
+        return await self._scraper.execute_batch(factories=factories, batch_size=batch_size, static=static)
+
+
+    async def fetch_offer_range(self, project_id: int) -> dict:
+        url = f"{self.BASE_URL}/projects/{project_id}/offers/range/"
+
+        return (await self._get(
+            url,
+            headers={}
+        )).json()
+
+
+    async def fetch_offer_data(self, jobs: list[JobStaticData], batch_size: int = 20, static: bool = False):
+        factories = [Factory(self.fetch_offer_range, job.feed_job.external_id, context=job) for job in jobs]
+        return await self._scraper.execute_batch(factories=factories, batch_size=batch_size, static=static)
+
 
     async def fetch_rss(
         self,
@@ -90,18 +99,6 @@ class HttpClient:
             }
         )).text
 
-
-    async def fetch_project_page(self, project_url: str) -> str:
-        return (await self._get(project_url)).text
-
-
-    async def fetch_offer_range(self, project_id: int) -> dict:
-        url = f"{self.BASE_URL}/projects/{project_id}/offers/range/"
-
-        return (await self._get(
-            url,
-            headers={}
-        )).json()
 
 
 
