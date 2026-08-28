@@ -113,8 +113,10 @@ class GeminiAnalyzer:
             task.add_done_callback(self._background_tasks.discard)
             if exc.code == 429:
                 raise RateLimitError(str(exc)) from exc
-
-            raise
+            if exc.code == 404:
+                pass
+            else:
+                raise
 
         except Exception as exc:
             log.error("%s", exc)
