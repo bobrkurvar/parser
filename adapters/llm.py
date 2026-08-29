@@ -17,7 +17,7 @@ class InvalidGeminiResponse(Exception):
     pass
 
 
-class GeminiSchema(BaseModel):
+class AIAnalysisSchema(BaseModel):
     batch_index: int = Field(description="Номер заказа из поля ID во входной пачке.")
     priority_value: int = Field(description="Итоговый приоритет заказа: 0 — HIDDEN, 1 — LOW, 2 — MEDIUM, 3 — HIGH.")
     explanation: str = Field(description=SCHEMA_EXPLANATION)
@@ -76,7 +76,7 @@ class GeminiAnalyzer:
                 config={
                     "system_instruction": self.system_instruction,
                     "response_mime_type": "application/json",
-                    "response_schema": list[GeminiSchema],
+                    "response_schema": list[AIAnalysisSchema],
                 },
             )
 
