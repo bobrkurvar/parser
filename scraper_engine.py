@@ -2,6 +2,8 @@ import asyncio
 import logging
 from functools import partial
 
+from openai import max_retries
+
 log = logging.getLogger(__name__)
 
 class Factory:
@@ -27,7 +29,6 @@ class Scraper:
         self.failed_on = failed_on
 
 
-
     async def execute_batch(self, factories: list, batch_size: int = 10, static: bool = False):
         pending = factories
         successful_results, failed_results = [], []
@@ -39,14 +40,19 @@ class Scraper:
             items_to_retry = []
             batch = pending[:batch_size]
 
-            results = await asyncio.gather(*(factory() for factory in batch))
+            #results = await asyncio.gather(*(factory() for factory in batch))
+            tasks = [
+                asyncio.create_task(factory())
+                for factory in batch
+            ]
 
-            for factory, result in results:
+            for completed in asyncio.as_completed(tasks):
+                factory, result = await completed
                 context = factory.context
                 if isinstance(result, self.retry_on):
                     if isinstance(result, self.decrease_on):
                         to_decrease = True
-                    if factory.tries <= self.max_retries:
+                    if self.max_retries is None or factory.tries <= self.max_retries:
                         items_to_retry.append(factory)
                         continue
 
@@ -60,7 +66,17 @@ class Scraper:
                         context,
                         result,
                     )
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+
+                    # Отменённые задачи имеют результат CancelledError и что бы они не прокидывались дальше такой режим, просто жду завершения задач
+                    await asyncio.gather(
+                        *tasks,
+                        return_exceptions=True,
+                    )
                     raise result
+
                 else:
                     successful_results.append((context, result))
                     successful_count += 1
@@ -70,7 +86,6 @@ class Scraper:
 
             pending = pending[batch_size:] + items_to_retry
             batch_size = max_size if max_size is not None else batch_size + self.increase
-            #sleep_time = 1 if items_to_retry else 0.3
             await asyncio.sleep(0.3)
 
         return successful_results, failed_results

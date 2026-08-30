@@ -1,7 +1,7 @@
 import asyncio
 import threading
 from adapters.web import HttpClient
-from adapters.llm import GeminiAnalyzer
+from adapters.llm import AIAnalyzer
 from adapters.uow import UnitOfWork
 from db.mapper import registry
 from jobs import load_jobs, read_active_jobs
@@ -11,22 +11,19 @@ from dto import JobStaticData, JobPriority
 
 
 class AsyncBackend:
-    def __init__(self):
+    def __init__(self, ai_provider):
         self.loop = asyncio.new_event_loop()
         self.client = None
         self.llm = None
         self._db_provider = None
         self.uow = None
+        self.ai_provider = ai_provider
         self.is_ready = threading.Event()  # Сигнал готовности зависимостей
 
         # Запускаем поток-воркер
         self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
         self.thread.start()
 
-    # @property
-    # def db(self):
-    #     self._uow = UnitOfWork(registry=registry, provider=self.db_provider)
-    #     return self._uow.db
 
     def _run_event_loop(self):
         """Метод выполняется в отдельном потоке."""
@@ -34,7 +31,7 @@ class AsyncBackend:
 
         # Инициализируем зависимости ВНУТРИ цикла
         self.client = HttpClient()
-        self.llm = GeminiAnalyzer()
+        self.llm = AIAnalyzer(ai_provider=self.ai_provider)
         self._db_provider = DbProvider(url=conf.db_url)
         self.uow = UnitOfWork(registry=registry, provider=self._db_provider)
 
