@@ -46,14 +46,18 @@ class AIAnalysis:
 @dataclass
 class JobStaticData:
     feed_job: FeedJob
-    priority: JobPriority
     page_data: JobPageData
     id: int | None = None
+    priority: JobPriority | None = None
     ai: AIAnalysis | None = None
 
     @property
     def is_hidden(self):
         return self.page_data.is_closed or self.priority == JobPriority.HIDDEN
+
+    @property
+    def effective_priority(self):
+        return self.priority if self.priority is not None else self.ai.priority
 
 
 @dataclass
@@ -65,9 +69,9 @@ class ActiveJob:
 
 @dataclass
 class CollectResult:
-    all_cnt: int
+    total_cnt: int
     passed_cnt: int
-    content_filter_cnt: int
-    exclude_stack_filter_cnt: int
+    #content_filter_cnt: int
+    #exclude_stack_filter_cnt: int
     jobs: list[ActiveJob]
 

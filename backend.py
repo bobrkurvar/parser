@@ -1,13 +1,13 @@
 import asyncio
 import threading
-from adapters.web import HttpClient
+from fl.adapters.web import HttpClient
 from adapters.llm import AIAnalyzer
 from adapters.uow import UnitOfWork
-from db.mapper import registry
-from jobs import load_jobs, read_active_jobs
+from fl.db.mapper import registry
+from fl.jobs import load_jobs, read_active_jobs
 from core import conf
 from adapters.db_provider import DbProvider
-from dto import JobStaticData, JobPriority
+from fl.dto import JobStaticData, JobPriority
 
 
 class AsyncBackend:

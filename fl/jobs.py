@@ -1,5 +1,5 @@
 from filters import analyze_basic
-from dto import JobStaticData, JobPageData, JobPriority, ActiveJob
+from fl.dto import JobStaticData, JobPageData, ActiveJob, CollectResult
 import logging
 from rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
@@ -41,7 +41,6 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
             except NotFoundError:
                 jobs_to_fetch.append(job)
     log.debug("Новых заказов для анализа: %s", len(jobs_to_fetch))
-    #results, _ = await get_pages(client=http_client, jobs=jobs_to_fetch)
     results, _ = await http_client.fetch_pages(jobs=jobs_to_fetch)
     for job, html in results:
         page_data = parse_fl_job_page(html)
@@ -49,8 +48,8 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
             pending_analyze_data.append((job.title, page_data.description))
             pending_analyze_jobs.append(job)
-        else:
-            jobs_to_save.append(JobStaticData(feed_job=job, priority=JobPriority.HIDDEN, page_data=page_data))
+        # else:
+        #     jobs_to_save.append(JobStaticData(feed_job=job, page_data=page_data))
 
     analyses = await llm.analyze_jobs(pending_analyze_data)
 
@@ -61,7 +60,6 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         jobs_to_save.append(
             JobStaticData(
                 feed_job=job,
-                priority=analysis.priority,
                 ai=analysis,
                 page_data=page_cache[job.external_id]
             )
@@ -80,7 +78,6 @@ async def read_active_jobs(
     uow,
     page_cache: dict[int, JobPageData] | None = None,
 ) -> list[ActiveJob]:
-    # Запросы для получения offer тоже нужно через конкурентные запросы
     page_cache = page_cache or {}
     async with uow:
         active_jobs: tuple[JobStaticData] = await uow.db.read(JobStaticData, loaded="ai_analysis", is_hidden=False)
@@ -100,7 +97,6 @@ async def read_active_jobs(
         else:
             hide_jobs_ids.append(active_job.id)
 
-    #page_results, failed = await get_pages(client=http_client, jobs=jobs_to_fetch_page)
     page_results, failed = await http_client.fetch_pages(jobs=jobs_to_fetch_page)
     hide_jobs_ids.extend(job.id for job, _ in failed)
     for job, html in page_results:
@@ -111,7 +107,6 @@ async def read_active_jobs(
         else:
             hide_jobs_ids.append(job.id)
 
-    #offer_results, failed = await get_offer_data(client=http_client, jobs=jobs_to_offer_range)
     offer_results, failed = await http_client.fetch_offer_data(jobs=jobs_to_offer_range)
     hide_jobs_ids.extend(job.id for job, _ in failed)
     for job, offer_data in offer_results:
@@ -124,7 +119,7 @@ async def read_active_jobs(
 
     valid_jobs.sort(
         key=lambda job: (
-            job.static_data.priority,
+            job.static_data.effective_priority,
             job.static_data.feed_job.published_at,
         ),
         reverse=True,
@@ -133,16 +128,19 @@ async def read_active_jobs(
     return valid_jobs
 
 
-async def load_jobs(http_client, llm, uow) -> list[ActiveJob]:
+async def load_jobs(http_client, llm, uow) -> CollectResult:
     page_cache = await collect_pipeline(
         http_client=http_client,
         llm=llm,
         uow=uow,
     )
 
-    return await read_active_jobs(
+    jobs = await read_active_jobs(
         http_client=http_client,
         uow=uow,
         page_cache=page_cache
     )
+    async with uow:
+        total_cnt = await uow.db.count(JobStaticData)
+    return CollectResult(jobs=jobs, passed_cnt=len(jobs), total_cnt=total_cnt)
 

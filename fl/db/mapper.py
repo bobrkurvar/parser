@@ -1,5 +1,5 @@
-import dto
-from db import models
+from fl import dto
+from fl.db import models
 from sqlalchemy import inspect
 from email.utils import parsedate_to_datetime
 
@@ -60,7 +60,11 @@ def map_job_static_data_to_dto(obj: models.JobStaticData) -> dto.JobStaticData:
     return dto.JobStaticData(
         id=obj.id,
         feed_job=job,
-        priority=dto.JobPriority(obj.priority),
+        priority=(
+            dto.JobPriority(obj.priority)
+            if obj.priority is not None
+            else None
+        ),
         ai=ai,
         page_data=page_data
     )

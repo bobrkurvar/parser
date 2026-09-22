@@ -6,7 +6,7 @@ from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 from queue import Queue, Empty
 
-from dto import ActiveJob, JobPriority
+from fl.dto import ActiveJob, JobPriority, CollectResult
 
 log = logging.getLogger(__name__)
 
@@ -402,7 +402,8 @@ class App(tk.Tk):
         self.mark_status.config(text="")
         self.open_button.config(state="disabled")
 
-    def show_result(self, jobs: list[ActiveJob]) -> None:
+    def show_result(self, result: CollectResult) -> None:
+        jobs = result.jobs
         self.jobs = jobs
 
         for index, active_job in enumerate(jobs):
@@ -410,7 +411,7 @@ class App(tk.Tk):
             job = static_data.feed_job
             page = static_data.page_data
             offer_range = active_job.dynamic_data
-            priority = static_data.priority
+            priority = static_data.effective_priority
 
             tags_text = (
                 ", ".join(job.tags[:2])
@@ -442,7 +443,10 @@ class App(tk.Tk):
             )
 
         self.status_label.config(
-            text=f"Готово. Актуальных вакансий: {len(jobs)}",
+            text=(
+                f"Готово. Актуальных: {result.passed_cnt}; "
+                f"всего собрано: {result.total_cnt}"
+            )
         )
         self.load_button.config(state="normal")
         self.refresh_button.config(state="normal")
@@ -469,7 +473,6 @@ class App(tk.Tk):
         page = static_data.page_data
         offer_range = active_job.dynamic_data
         ai = static_data.ai
-        priority = static_data.priority
 
         self.selected_job = active_job
 
@@ -509,9 +512,9 @@ class App(tk.Tk):
         )
 
         self.mark_var.set(
-            priority.value
-            if priority is not None
-            else -1,
+            static_data.priority.value
+            if static_data.priority is not None
+            else -1
         )
 
         self.save_mark_btn.config(state="normal")

@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from dto import FeedJob
+from fl.dto import FeedJob
 from html import unescape
 import re
 import logging

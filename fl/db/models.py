@@ -1,8 +1,8 @@
 from sqlalchemy import Text, ForeignKey, DateTime, CheckConstraint
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import datetime, timezone
-from dto import JobPriority
+from datetime import datetime
+from fl.dto import JobPriority
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -21,7 +21,7 @@ class JobStaticData(Base):
     description: Mapped[str] = mapped_column(Text)
     tags_raw: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column()
-    priority: Mapped[int]
+    priority: Mapped[int | None]
     is_hidden: Mapped[bool] = mapped_column(default=False) # Денормализованное поле для удобной фильтрации
     is_closed: Mapped[bool] = mapped_column(default=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

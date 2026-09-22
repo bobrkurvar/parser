@@ -1,4 +1,3 @@
-from dto import FeedJob
 from keywords import CONTENT_KEYWORDS, EXCLUDED_TERMS
 import re
 import logging

@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from dto import JobPageData, OfferRange
+from fl.dto import JobPageData, OfferRange
 import logging
 import base64
 import json
@@ -45,6 +45,14 @@ def get_budget_text(soup: BeautifulSoup) -> str | None:
     return None
 
 
+
+UNAVAILABLE_MARKERS = (
+    "Заказчик выбрал исполнителя",
+    "Заказ находится в архиве",
+    "Заказ закрыт",
+    "Проект снят с публикации",
+)
+
 def get_is_closed(soup: BeautifulSoup) -> bool:
     status_block = soup.select_one(
         '[id^="project_status_"]',
@@ -57,7 +65,7 @@ def get_is_closed(soup: BeautifulSoup) -> bool:
         status_block.get_text(" ", strip=True),
     )
 
-    return "Заказчик выбрал исполнителя" in status_text
+    return "Заказчик выбрал исполнителя" in status_text or "Заказ находится в архиве" in status_text
 
 
 def parse_fl_job_page(html: str) -> JobPageData:
