@@ -2,11 +2,12 @@ from openai import AsyncOpenAI, RateLimitError as OpenAIRateLimitError
 from exceptions import RateLimitError
 from core import conf
 from .schemas import AIAnalysisSchema, InvalidAIResponse
-from pydantic import BaseModel, ConfigDict
+#from pydantic import BaseModel, ConfigDict
+import json
 
-class YandexAnalysisResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    results: list[AIAnalysisSchema]
+# class YandexAnalysisResponse(BaseModel):
+#     model_config = ConfigDict(extra="forbid")
+#     results: list[AIAnalysisSchema]
 
 
 class YandexAIProvider:
@@ -28,7 +29,9 @@ class YandexAIProvider:
     async def analyze(
         self,
         system_instruction: str,
-        batch_text: str,
+        content: str,
+        response_schema: dict,
+        #batch_text: str,
     ) -> list[AIAnalysisSchema]:
         try:
             response = await self.client.chat.completions.create(
@@ -40,10 +43,11 @@ class YandexAIProvider:
                     },
                     {
                         "role": "user",
-                        "content": (
-                            "Проанализируй следующие заказы:\n"
-                            f"{batch_text}"
-                        ),
+                        "content": content
+                        # "content": (
+                        #     "Проанализируй следующие заказы:\n"
+                        #     f"{batch_text}"
+                        # ),
                     },
                 ],
                 temperature=0.1,
@@ -52,9 +56,10 @@ class YandexAIProvider:
                     "type": "json_schema",
                     "json_schema": {
                         "name": "job_analysis",
-                        "schema": (
-                            YandexAnalysisResponse.model_json_schema()
-                        ),
+                        "schema": response_schema
+                        # "schema": (
+                        #     YandexAnalysisResponse.model_json_schema()
+                        # ),
                     },
                 },
             )
@@ -66,6 +71,12 @@ class YandexAIProvider:
         if not content:
             raise InvalidAIResponse("Yandex вернул пустой ответ")
 
-        parsed = YandexAnalysisResponse.model_validate_json(content)
-
-        return parsed.results
+        # parsed = YandexAnalysisResponse.model_validate_json(content)
+        #
+        # return parsed.results
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise InvalidAIResponse(
+                "Провайдер вернул невалидный JSON"
+            ) from exc

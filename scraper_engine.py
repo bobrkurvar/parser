@@ -2,7 +2,6 @@ import asyncio
 import logging
 from functools import partial
 
-from openai import max_retries
 
 log = logging.getLogger(__name__)
 

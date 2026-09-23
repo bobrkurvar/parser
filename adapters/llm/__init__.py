@@ -18,7 +18,6 @@ class InvalidAIResponse(Exception):
 class AIAnalyzer:
     _scraper = Scraper(
         retry_on=(InvalidAIResponse, RateLimitError),
-        #decrease_on=RateLimitError,
         max_retries=None
     )
 
@@ -49,17 +48,23 @@ class AIAnalyzer:
         return "\n---\n".join(batch_text_parts)
 
 
+    def _build_result(self):
+
+
+
     async def _process_single_chunk(
         self,
         chunk: list[tuple[str, str]],
         start_index: int,
     ) -> list[tuple[int, AIAnalysis]]:
-
+        # анализ выходных данные из провайдера, должен быть batch index
         batch_text = self._build_batch_text(chunk)
         ai_results = await self.provider.analyze(
             system_instruction=self.system_instruction,
             batch_text=batch_text,
         )
+        if not all("batch_index" in res for res in ai_results):
+            raise ValueError("В ответе нет индекса пачки")
 
         parsed_results = []
         for ai_data in ai_results:
