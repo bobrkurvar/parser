@@ -25,6 +25,6 @@ class Settings(BaseSettings):
 
 
 
-# def load_config() -> Settings:
-#     conf = Settings()  # type: ignore
-#     return conf
+def load_config() -> Settings:
+    conf = Settings()  # type: ignore
+    return conf

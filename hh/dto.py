@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from utils import clean_html
+from .utils import clean_html
 from datetime import datetime
 
 

@@ -1,9 +1,8 @@
 import logging
 from exceptions import RateLimitError, ResourceNotFoundError
-from httpx import AsyncClient, HTTPStatusError
+from httpx import AsyncClient, ConnectError, HTTPStatusError
 from fl.dto import FeedJob, JobStaticData
 from scraper_engine import Scraper, Factory
-from adapters.http_transport import HttpTransport
 
 log = logging.getLogger(__name__)
 
@@ -12,21 +11,24 @@ class HttpClient:
     BASE_URL = "https://www.fl.ru"
     _scraper = Scraper(retry_on=RateLimitError, decrease_on=RateLimitError, failed_on=ResourceNotFoundError)
 
-    def __init__(self, http_transport: HttpTransport):
-        # self._url = url
-        # self._app = app
-        # self.headers = {
-        #     "User-Agent": "Mozilla/5.0",
-        #     "Accept": "application/rss+xml, application/xml, text/xml, */*",
-        #     "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-        # }
-        # self._client = AsyncClient(
-        #     headers=self.headers,
-        #     timeout=20,
-        # )
-        self.http_transport = http_transport
-        self._client = self.http_transport.client
+    def __init__(self, url=None, app=None):
+        self._url = url
+        self._app = app
+        self.headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+        }
+        self._client = AsyncClient(
+            headers=self.headers,
+            timeout=20,
+        )
 
+    @property
+    def client(self):
+        if self._client is None:
+            raise RuntimeError("HTTP client is not initialized")
+        return self._client
 
     async def _get(
         self,
@@ -36,14 +38,13 @@ class HttpClient:
         headers: dict | None = None,
     ):
         try:
-            return await self.http_transport.get(url, params=params, headers=headers)
-            # response = await self._client.get(
-            #     url,
-            #     params=params,
-            #     headers=headers,
-            # )
-            # response.raise_for_status()
-            # return response
+            response = await self._client.get(
+                url,
+                params=params,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response
 
         except HTTPStatusError as exc:
             status_code = exc.response.status_code
@@ -99,4 +100,7 @@ class HttpClient:
         )).text
 
 
-
+    async def close(self):
+        if self._client:
+            await self.client.aclose()
+            self._client = None

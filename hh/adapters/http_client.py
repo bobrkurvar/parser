@@ -1,0 +1,85 @@
+import httpx
+
+from hh.dto import VacancyPreview, VacancyDetails
+import logging
+from hh.config import conf
+
+log = logging.getLogger(__name__)
+
+
+class HttpClient:
+    BASE_URL = "https://api.hh.ru"
+
+    def __init__(self) -> None:
+        headers = {
+            "User-Agent": "hh_watcher/0.1 (andrey.bogdanov2005@mail.ru)",
+            "Authorization": f"Bearer {conf.access_token}",
+        }
+
+        self._client = httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=headers,
+            timeout=20.0,
+        )
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def get_areas(self) -> list[dict]:
+        response = await self._client.get("/areas")
+        response.raise_for_status()
+        return response.json()
+
+    async def get_vacancy(self, vacancy_id: int) -> VacancyDetails:
+        response = await self._client.get(f"/vacancies/{vacancy_id}")
+        if response.is_error:
+            log.warning(
+                "Ошибка получения вакансии %s: " "status=%s, body=%s",
+                vacancy_id,
+                response.status_code,
+                response.text,
+            )
+        response.raise_for_status()
+        return VacancyDetails.from_api(response.json())
+
+    async def get_vacancies(
+        self, query: str, area_id: int | None = None
+    ) -> list[VacancyPreview]:
+        vacancies: list[VacancyPreview] = []
+        page = 0
+
+        while True:
+            params = {
+                "text": query,
+                "page": page,
+                "per_page": 100,
+            }
+
+            if area_id is not None:
+                params["area"] = area_id
+
+            response = await self._client.get("/vacancies", params=params)
+            if response.is_error:
+                log.warning(
+                    "Ошибка HH API: status=%s, body=%s",
+                    response.status_code,
+                    response.text,
+                )
+            response.raise_for_status()
+
+            payload = response.json()
+
+            vacancies.extend(
+                VacancyPreview.from_api(
+                    item,
+                    query=query,
+                )
+                for item in payload["items"]
+            )
+
+            if page + 1 >= payload["pages"]:
+                break
+
+            page += 1
+
+        return vacancies
