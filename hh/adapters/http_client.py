@@ -23,6 +23,7 @@ class HttpClient:
             base_url=self.BASE_URL,
             headers=headers,
             timeout=20.0,
+            follow_redirects=True,
         )
 
     async def close(self) -> None:

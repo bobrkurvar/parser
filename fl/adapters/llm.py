@@ -49,23 +49,15 @@ class AIAnalyzer(BaseAIAnalyzer):
             system_instruction=system_instruction
         )
 
-
     @staticmethod
     def _build_request(
-        chunk: list[tuple[str, str]],
+        item: tuple[str, str],
     ) -> str:
-        jobs = [
-            {
-                "id": index,
-                "title": title,
-                "description": description,
-            }
-            for index, (title, description) in enumerate(chunk)
-        ]
+        title, description = item
 
-        return json.dumps(
-            jobs,
-            ensure_ascii=False,
+        return (
+            f"Заголовок: {title}\n"
+            f"Описание: {description}"
         )
     # @staticmethod
     # def _build_batch_text(chunk: list[tuple[str, str]]) -> str:

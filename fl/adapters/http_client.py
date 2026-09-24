@@ -22,6 +22,7 @@ class HttpClient:
         self._client = AsyncClient(
             headers=self.headers,
             timeout=20,
+            follow_redirects=True,
         )
 
     @property

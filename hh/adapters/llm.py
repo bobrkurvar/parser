@@ -32,7 +32,7 @@ class AIAnalyzer(BaseAIAnalyzer):
         super().__init__(ai_provider=ai_provider, system_instruction=system_instruction, response_model=AnalysisResponse)
 
     @staticmethod
-    def _build_batch_text(chunk: list[Vacancy]) -> str:
+    def _build_request(chunk: list[Vacancy]) -> str:
         batch_text_parts: list[str] = []
 
         for index, vacancy in enumerate(chunk):
