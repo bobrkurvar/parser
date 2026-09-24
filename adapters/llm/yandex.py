@@ -2,12 +2,7 @@ from openai import AsyncOpenAI, RateLimitError as OpenAIRateLimitError
 from exceptions import RateLimitError
 from core import conf
 from .schemas import AIAnalysisSchema, InvalidAIResponse
-#from pydantic import BaseModel, ConfigDict
 import json
-
-# class YandexAnalysisResponse(BaseModel):
-#     model_config = ConfigDict(extra="forbid")
-#     results: list[AIAnalysisSchema]
 
 
 class YandexAIProvider:

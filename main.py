@@ -10,7 +10,7 @@ from hh.literals.search_keywords import SEARCH_QUERIES
 setup_logging()
 
 async def main():
-    runtime = AsyncRuntime
+    runtime = AsyncRuntime()
     ai_provider = YandexAIProvider()
     fl_backend = FlBackend(runtime=runtime, ai_provider=ai_provider)
     hh_backend = HHBackend(runtime=runtime, ai_provider=ai_provider, queries=SEARCH_QUERIES)

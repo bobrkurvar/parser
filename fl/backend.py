@@ -1,12 +1,12 @@
 from fl.adapters.http_client import HttpClient
-from adapters.llm import AIAnalyzer
+from fl.adapters.llm import AIAnalyzer
 from adapters.uow import UnitOfWork
 from fl.db.mapper import registry
 from fl.jobs import load_jobs, read_active_jobs
-from config import conf
+from .config import conf
 from adapters.db_provider import DbProvider
 from fl.dto import JobStaticData, JobPriority
-from backend import AsyncRuntime
+from async_runtime import AsyncRuntime
 
 
 class AsyncBackend:

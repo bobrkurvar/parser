@@ -1,12 +1,12 @@
 from adapters.db_provider import DbProvider
-from adapters.llm import AIAnalyzer
+from .adapters.llm import AIAnalyzer
 from adapters.uow import UnitOfWork
 from hh.adapters.http_client import HttpClient
-from config import conf
-from db.mapper import registry
-from dto import Vacancy
-from use_cases import load_vacancies
-from backend import AsyncRuntime
+from .config import conf
+from .db.mapper import registry
+from .dto import Vacancy
+from .use_cases import load_vacancies
+from async_runtime import AsyncRuntime
 
 
 class AsyncBackend:

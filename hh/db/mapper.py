@@ -1,5 +1,5 @@
-import dto
-from db import models
+from hh import dto
+from . import models
 from sqlalchemy import inspect
 from datetime import datetime
 

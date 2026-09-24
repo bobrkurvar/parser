@@ -1,7 +1,7 @@
 import re
-from dto import VacancyPreview
-from fl.literals import CONTENT_KEYWORDS, EXCLUDED_KEYWORDS
-from utils import clean_html
+from hh.dto import VacancyPreview
+from hh.literals import CONTENT_KEYWORDS, EXCLUDED_KEYWORDS
+from hh.utils import clean_html
 
 import logging
 

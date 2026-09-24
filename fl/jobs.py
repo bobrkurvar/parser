@@ -1,10 +1,10 @@
-from filters import analyze_basic
+from fl.filters import analyze_basic
 from fl.dto import JobStaticData, JobPageData, ActiveJob, CollectResult
 import logging
-from rss_categories import ALL_CATEGORIES
+from fl.rss_categories import ALL_CATEGORIES
 from exceptions import NotFoundError
-from infra.infra_html import parse_fl_job_page, offer_range
-from infra.infra_xml import parse_fl_rss
+from fl.infra.infra_html import parse_fl_job_page, offer_range
+from fl.infra.infra_xml import parse_fl_rss
 
 
 log = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         # else:
         #     jobs_to_save.append(JobStaticData(feed_job=job, page_data=page_data))
 
-    analyses = await llm.analyze_jobs(pending_analyze_data)
+    analyses = await llm.analyze(pending_analyze_data)
 
     for job, analysis in zip(pending_analyze_jobs, analyses):
         if analysis is None:

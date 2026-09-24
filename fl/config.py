@@ -1,10 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from core.config import Settings as RootSettings
+#from core.config import Settings as RootSettings
 
 
 
-class Settings(RootSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file="fl/.env", env_file_encoding="utf-8")
     db_host: str
     db_port: int
     db_user: str

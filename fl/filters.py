@@ -1,4 +1,4 @@
-from keywords import CONTENT_KEYWORDS, EXCLUDED_TERMS
+from fl.keywords import CONTENT_KEYWORDS, EXCLUDED_TERMS
 import re
 import logging
 
