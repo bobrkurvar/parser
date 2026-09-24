@@ -1,28 +1,14 @@
 from exceptions import RateLimitError
-from fl.literals import  SCHEMA_EXPLANATION, SCHEMA_CONFIDENCE
 import asyncio
 import logging
 from groq import AsyncGroq
 from groq import RateLimitError as GroqRateLimitError
-from pydantic import BaseModel, Field, ConfigDict
 from core import conf
 from .schemas import InvalidAIResponse
+import json
 
 log = logging.getLogger(__name__)
 
-
-
-
-class AIAnalysisSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    batch_index: int = Field(description="Номер заказа из поля ID во входной пачке.")
-    priority_value: int = Field(description="Итоговый приоритет заказа: 0 — HIDDEN, 1 — LOW, 2 — MEDIUM, 3 — HIGH.")
-    explanation: str = Field(description=SCHEMA_EXPLANATION)
-    confidence: float = Field(description=SCHEMA_CONFIDENCE)
-
-class GroqAnalysisResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    results: list[AIAnalysisSchema]
 
 
 class GroqProvider:
@@ -39,8 +25,9 @@ class GroqProvider:
     async def analyze(
         self,
         system_instruction: str,
-        batch_text: str,
-    ) -> list[AIAnalysisSchema]:
+        content: str,
+        response_schema: dict,
+    ):
         try:
             await self._available.wait()
             response = await self.client.chat.completions.create(
@@ -52,11 +39,7 @@ class GroqProvider:
                     },
                     {
                         "role": "user",
-                        "content": (
-                            "Проанализируй следующие заказы "
-                            "и верни массив JSON:\n"
-                            f"{batch_text}"
-                        ),
+                        "content": content,
                     },
                 ],
                 response_format={
@@ -64,7 +47,7 @@ class GroqProvider:
                     "json_schema": {
                         "name": "job_analysis",
                         "strict": True,
-                        "schema": GroqAnalysisResponse.model_json_schema(),
+                        "schema": response_schema,
                     },
                 },
             )
@@ -82,6 +65,12 @@ class GroqProvider:
             asyncio.create_task(self._restore(retry_after))
             raise RateLimitError(str(exc)) from exc
 
-        parsed = GroqAnalysisResponse.model_validate_json(content)
-
-        return parsed.results
+        # parsed = GroqAnalysisResponse.model_validate_json(content)
+        #
+        # return parsed.results
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise InvalidAIResponse(
+                "Провайдер вернул невалидный JSON"
+            ) from exc

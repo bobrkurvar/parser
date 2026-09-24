@@ -1,4 +1,5 @@
 from .yandex import YandexAIProvider
+from .groq import GroqProvider
 
 from exceptions import RateLimitError
 import logging

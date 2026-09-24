@@ -15,7 +15,7 @@ class IgnoreFilter(logging.Filter):
 
 def mute_libraries_loggers():
     logging.getLogger("asyncio").setLevel(logging.WARNING)
-    #logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def setup_logging():
@@ -40,5 +40,7 @@ def setup_test_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     # Не добавляем StreamHandler
-    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    # logging.getLogger("asyncio").setLevel(logging.WARNING)
+    # logging.getLogger("httpx").setLevel(logging.WARNING)
+    mute_libraries_loggers()
     logger.addFilter(IgnoreFilter())

@@ -22,9 +22,9 @@ class AIAnalysisSchema(BaseModel):
     )
 
 
-class AnalysisResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    results: list[AIAnalysisSchema]
+# class AnalysisResponse(BaseModel):
+#     model_config = ConfigDict(extra="forbid")
+#     results: list[AIAnalysisSchema]
 
 
 
@@ -45,7 +45,7 @@ class AIAnalyzer(BaseAIAnalyzer):
         super().__init__(
             ai_provider=ai_provider,
             #response_schema=AnalysisResponse.model_json_schema(),
-            response_model=AnalysisResponse,
+            response_model=AIAnalysisSchema,
             system_instruction=system_instruction
         )
 
