@@ -5,9 +5,9 @@ from fl.db.mapper import registry
 from fl.jobs import load_jobs, read_active_jobs
 from .config import conf
 from adapters.db_provider import DbProvider
-from fl.dto import JobStaticData, JobPriority
+from fl.dto import JobStaticData
 from async_runtime import AsyncRuntime
-
+from datetime import datetime
 
 class AsyncBackend:
     def __init__(self, ai_provider, runtime: AsyncRuntime):
@@ -36,46 +36,49 @@ class AsyncBackend:
 
         self.runtime.submit(task_wrapper(), callback)
 
-    def update_priority(
+    def update_match(
         self,
-        job_id: int,
-        mark: int | str,
+        job: JobStaticData,
+        matches_profile: bool,
         callback,
     ):
         async def task_wrapper():
-            priority = JobPriority(int(mark))
-
+            job.matches_profile = matches_profile
             async with self.uow:
-                return await self.uow.db.update(
-                    JobStaticData,
-                    {"id": job_id},
-                    priority=priority.value,
-                    is_hidden=priority == JobPriority.HIDDEN,
-                )
+                return await self.uow.db.save(job)
 
         self.runtime.submit(task_wrapper(), callback)
+
+    def responded(
+        self,
+        job: JobStaticData,
+        callback,
+    ):
+        async def task_wrapper():
+            job.responded_at = datetime.now().astimezone()
+            async with self.uow:
+                return await self.uow.db.save(job)
+
+        self.runtime.submit(task_wrapper(), callback)
+
+    # def update_match(
+    #     self,
+    #     job_id: int,
+    #     matches_profile: bool,
+    #     callback,
+    # ):
+    #     async def task_wrapper():
+    #         async with self.uow:
+    #             return await self.uow.db.update(
+    #                 JobStaticData,
+    #                 {"id": job_id},
+    #                 matches_profile=matches_profile,
+    #             )
+    #
+    #     self.runtime.submit(task_wrapper(), callback)
+
 
     async def close(self):
         await self.client.close()
         await self._db_provider.close()
 
-    # async def _shutdown_resources(self):
-    #     """Асинхронно закрывает все соединения и отменяет задачи."""
-    #     # 1. Отменяем все активные задачи в этом цикле, кроме текущей
-    #     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    #     for task in tasks:
-    #         task.cancel()
-    #
-    #     if tasks:
-    #         # Даем задачам шанс корректно завершиться после отмены
-    #         await asyncio.gather(*tasks, return_exceptions=True)
-    #
-    #     # 2. Закрываем http_transport
-    #     if self.http_transport:
-    #         await self.http_transport.close()
-    #
-    #     if self._db_provider:
-    #         try:
-    #             await self._db_provider.engine.dispose()
-    #         except Exception as e:
-    #             print(f"Ошибка при закрытии dbProvider: {e}")

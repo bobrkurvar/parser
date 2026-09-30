@@ -1,9 +1,7 @@
-from sqlalchemy import Text, ForeignKey, DateTime, CheckConstraint
+from sqlalchemy import Text, ForeignKey, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import datetime
-from fl.dto import JobPriority
-
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass
@@ -21,20 +19,21 @@ class JobStaticData(Base):
     description: Mapped[str] = mapped_column(Text)
     tags_raw: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column()
-    priority: Mapped[int | None]
+    matches_profile: Mapped[bool | None]
     is_hidden: Mapped[bool] = mapped_column(default=False) # Денормализованное поле для удобной фильтрации
     is_closed: Mapped[bool] = mapped_column(default=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ai_analysis: Mapped["AIAnalysis"] = relationship("AIAnalysis")
 
-    __table_args__ = (
-        CheckConstraint(
-            "priority IN ({})".format(
-                ", ".join(f"'{priority}'" for priority in JobPriority)
-            ),
-            name="check_priority",
-        ),
-    )
+    # __table_args__ = (
+    #     CheckConstraint(
+    #         "priority IN ({})".format(
+    #             ", ".join(f"'{priority}'" for priority in JobPriority)
+    #         ),
+    #         name="check_priority",
+    #     ),
+    # )
 
 
 class AIAnalysis(Base):
@@ -43,7 +42,7 @@ class AIAnalysis(Base):
         ForeignKey("job_data.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    priority: Mapped[int]
+    matches_profile: Mapped[bool]
     explanation: Mapped[str | None] = mapped_column(Text)
     confidence: Mapped[float] = mapped_column()
 

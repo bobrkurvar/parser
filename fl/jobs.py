@@ -40,7 +40,6 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
                     await uow.db.read_one(JobStaticData, external_id=job.external_id, with_raise=True)
             except NotFoundError:
                 jobs_to_fetch.append(job)
-    log.debug("Новых заказов для анализа: %s", len(jobs_to_fetch))
     results, _ = await http_client.fetch_pages(jobs=jobs_to_fetch)
     for job, html in results:
         page_data = parse_fl_job_page(html)
@@ -48,9 +47,8 @@ async def collect_pipeline(http_client, llm, uow) -> dict[int, JobPageData]:
         if not page_data.is_closed and analyze_basic(title=job.title, description=page_data.description):
             pending_analyze_data.append((job.title, page_data.description))
             pending_analyze_jobs.append(job)
-        # else:
-        #     jobs_to_save.append(JobStaticData(feed_job=job, page_data=page_data))
 
+    log.debug("Заказов для анализа: %s", len(pending_analyze_data))
     analyses = await llm.analyze(pending_analyze_data)
 
     for job, analysis in zip(pending_analyze_jobs, analyses):
@@ -77,7 +75,7 @@ async def read_active_jobs(
     http_client,
     uow,
     page_cache: dict[int, JobPageData] | None = None,
-) -> list[ActiveJob]:
+) -> CollectResult:
     page_cache = page_cache or {}
     async with uow:
         active_jobs: tuple[JobStaticData] = await uow.db.read(JobStaticData, loaded="ai_analysis", is_hidden=False)
@@ -119,13 +117,20 @@ async def read_active_jobs(
 
     valid_jobs.sort(
         key=lambda job: (
-            job.static_data.effective_priority,
+            job.static_data.human_or_ai_match,
             job.static_data.feed_job.published_at,
         ),
         reverse=True,
     )
 
-    return valid_jobs
+    async with uow:
+        total_cnt = await uow.db.count(JobStaticData)
+
+    return CollectResult(
+        jobs=valid_jobs,
+        passed_cnt=len(valid_jobs),
+        total_cnt=total_cnt,
+    )
 
 
 async def load_jobs(http_client, llm, uow) -> CollectResult:
@@ -135,12 +140,10 @@ async def load_jobs(http_client, llm, uow) -> CollectResult:
         uow=uow,
     )
 
-    jobs = await read_active_jobs(
+    return await read_active_jobs(
         http_client=http_client,
         uow=uow,
         page_cache=page_cache
     )
-    async with uow:
-        total_cnt = await uow.db.count(JobStaticData)
-    return CollectResult(jobs=jobs, passed_cnt=len(jobs), total_cnt=total_cnt)
+
 

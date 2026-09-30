@@ -1,6 +1,6 @@
 import logging
 from exceptions import RateLimitError, ResourceNotFoundError
-from httpx import AsyncClient, ConnectError, HTTPStatusError
+from httpx import AsyncClient, HTTPStatusError
 from fl.dto import FeedJob, JobStaticData
 from scraper_engine import Scraper, Factory
 
@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 class HttpClient:
     BASE_URL = "https://www.fl.ru"
-    _scraper = Scraper(retry_on=RateLimitError, decrease_on=RateLimitError, failed_on=ResourceNotFoundError)
+    _scraper = Scraper(retry_on=RateLimitError, decrease_on=RateLimitError, increase=10)
 
     def __init__(self, url=None, app=None):
         self._url = url
@@ -69,7 +69,7 @@ class HttpClient:
 
     async def fetch_pages(self, jobs: list[JobStaticData | FeedJob], batch_size: int = 20, static: bool = False):
         factories = [Factory(self.fetch_project_page, self._get_job_url(job), context=job) for job in jobs]
-        return await self._scraper.execute_batch(factories=factories, batch_size=batch_size, static=static)
+        return await self._scraper.collect_all(factories=factories, batch_size=batch_size, static=static)
 
 
     async def fetch_offer_range(self, project_id: int) -> dict:
@@ -83,7 +83,7 @@ class HttpClient:
 
     async def fetch_offer_data(self, jobs: list[JobStaticData], batch_size: int = 20, static: bool = False):
         factories = [Factory(self.fetch_offer_range, job.feed_job.external_id, context=job) for job in jobs]
-        return await self._scraper.execute_batch(factories=factories, batch_size=batch_size, static=static)
+        return await self._scraper.collect_all(factories=factories, batch_size=batch_size, static=static)
 
 
     async def fetch_rss(

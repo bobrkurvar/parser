@@ -16,6 +16,7 @@ class IgnoreFilter(logging.Filter):
 def mute_libraries_loggers():
     logging.getLogger("asyncio").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
 
 
 def setup_logging():

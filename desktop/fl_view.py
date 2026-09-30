@@ -5,77 +5,29 @@ from datetime import datetime
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
-from fl.dto import ActiveJob, CollectResult, JobPriority
+from fl.dto import ActiveJob, CollectResult
 
 
 log = logging.getLogger(__name__)
-
-
-def priority_text(
-    priority: JobPriority | None,
-) -> str:
-    if priority is None:
-        return "—"
-
-    if priority == JobPriority.HIGH:
-        return "🔥 HIGH"
-
-    if priority == JobPriority.MEDIUM:
-        return "⚠️ MEDIUM"
-
-    if priority == JobPriority.LOW:
-        return "LOW"
-
-    return "HIDDEN"
-
-
-def priority_tag(
-    priority: JobPriority | None,
-) -> str:
-    if priority == JobPriority.HIGH:
-        return "high"
-
-    if priority == JobPriority.MEDIUM:
-        return "medium"
-
-    if priority == JobPriority.LOW:
-        return "low"
-
-    return "hidden"
 
 
 def format_price_range(
     price_min: int | None,
     price_max: int | None,
 ) -> str:
-    if (
-        price_min is None
-        and price_max is None
-    ):
+    if price_min is None and price_max is None:
         return "-"
 
     if price_min == price_max:
-        return (
-            f"{price_min:,} ₽"
-            .replace(",", " ")
-        )
+        return f"{price_min:,} ₽".replace(",", " ")
 
     if price_min is None:
-        return (
-            f"до {price_max:,} ₽"
-            .replace(",", " ")
-        )
+        return f"до {price_max:,} ₽".replace(",", " ")
 
     if price_max is None:
-        return (
-            f"от {price_min:,} ₽"
-            .replace(",", " ")
-        )
+        return f"от {price_min:,} ₽".replace(",", " ")
 
-    return (
-        f"{price_min:,} – "
-        f"{price_max:,} ₽"
-    ).replace(",", " ")
+    return f"{price_min:,} – {price_max:,} ₽".replace(",", " ")
 
 
 class FLView(ttk.Frame):
@@ -88,12 +40,11 @@ class FLView(ttk.Frame):
         super().__init__(parent)
 
         self.backend = backend
-        self.enqueue_callback = (
-            enqueue_callback
-        )
+        self.enqueue_callback = enqueue_callback
 
-        self.jobs: list[ActiveJob] = []
+        self.jobs: dict[str, ActiveJob] = {}
         self.selected_job: ActiveJob | None = None
+        self.total_cnt = 0
 
         self.create_widgets()
 
@@ -109,9 +60,7 @@ class FLView(ttk.Frame):
             text="Загрузить и обновить",
             command=self.start_loading,
         )
-        self.load_button.pack(
-            side="left",
-        )
+        self.load_button.pack(side="left")
 
         self.refresh_button = ttk.Button(
             top_frame,
@@ -162,6 +111,7 @@ class FLView(ttk.Frame):
         paned: ttk.Panedwindow,
     ) -> None:
         left_frame = ttk.Frame(paned)
+
         paned.add(
             left_frame,
             weight=1,
@@ -169,15 +119,14 @@ class FLView(ttk.Frame):
 
         ttk.Label(
             left_frame,
-            text="Активные вакансии",
+            text="Активные заказы",
         ).pack(
             anchor="w",
             pady=(0, 6),
         )
 
-        tree_frame = ttk.Frame(
-            left_frame,
-        )
+        tree_frame = ttk.Frame(left_frame)
+
         tree_frame.pack(
             fill="both",
             expand=True,
@@ -187,13 +136,13 @@ class FLView(ttk.Frame):
             0,
             weight=1,
         )
+
         tree_frame.rowconfigure(
             0,
             weight=1,
         )
 
         columns = (
-            "priority",
             "title",
             "feed",
             "responses",
@@ -209,72 +158,59 @@ class FLView(ttk.Frame):
         )
 
         self.tree.tag_configure(
-            "high",
-            background="#fff2cc",
-        )
-        self.tree.tag_configure(
-            "medium",
-            background="#e8f4ff",
-        )
-        self.tree.tag_configure(
-            "low",
-            background="#f2f2f2",
-        )
-        self.tree.tag_configure(
-            "hidden",
-            foreground="#999999",
+            "ai_rejected",
+            foreground="#777777",
         )
 
-        self.tree.heading(
-            "priority",
-            text="Приоритет",
-        )
         self.tree.heading(
             "title",
             text="Название",
         )
+
         self.tree.heading(
             "feed",
             text="Лента",
         )
+
         self.tree.heading(
             "responses",
             text="Отклики",
         )
+
         self.tree.heading(
             "budget",
             text="Бюджет",
         )
+
         self.tree.heading(
             "tags",
             text="Теги",
         )
 
         self.tree.column(
-            "priority",
-            width=105,
-            anchor="center",
-        )
-        self.tree.column(
             "title",
-            width=370,
+            width=430,
             anchor="w",
         )
+
         self.tree.column(
             "feed",
             width=175,
             anchor="w",
         )
+
         self.tree.column(
             "responses",
             width=80,
             anchor="center",
         )
+
         self.tree.column(
             "budget",
             width=160,
             anchor="w",
         )
+
         self.tree.column(
             "tags",
             width=210,
@@ -303,11 +239,13 @@ class FLView(ttk.Frame):
             column=0,
             sticky="nsew",
         )
+
         scroll_y.grid(
             row=0,
             column=1,
             sticky="ns",
         )
+
         scroll_x.grid(
             row=1,
             column=0,
@@ -332,15 +270,14 @@ class FLView(ttk.Frame):
 
         ttk.Label(
             right_frame,
-            text="Детали вакансии",
+            text="Детали заказа",
         ).pack(
             anchor="w",
             pady=(0, 6),
         )
 
-        info_frame = ttk.Frame(
-            right_frame,
-        )
+        info_frame = ttk.Frame(right_frame)
+
         info_frame.pack(
             fill="x",
             pady=(0, 8),
@@ -349,21 +286,27 @@ class FLView(ttk.Frame):
         self.title_var = tk.StringVar(
             value="Название: ",
         )
+
         self.feed_var = tk.StringVar(
             value="Лента: ",
         )
+
         self.published_at_var = tk.StringVar(
             value="Опубликовано: ",
         )
+
         self.tags_var = tk.StringVar(
             value="Теги: ",
         )
+
         self.budget_var = tk.StringVar(
             value="Бюджет: ",
         )
+
         self.responses_var = tk.StringVar(
             value="Отклики: ",
         )
+
         self.url_var = tk.StringVar(
             value="Ссылка: ",
         )
@@ -371,11 +314,7 @@ class FLView(ttk.Frame):
         ttk.Label(
             info_frame,
             textvariable=self.title_var,
-            font=(
-                "Segoe UI",
-                10,
-                "bold",
-            ),
+            font=("Segoe UI", 10, "bold"),
             wraplength=700,
         ).pack(
             anchor="w",
@@ -412,12 +351,56 @@ class FLView(ttk.Frame):
 
         self.url_label.bind(
             "<Button-1>",
-            lambda _event:
-                self.open_selected_job(),
+            lambda _event: self.open_selected_job(),
         )
 
-        self.create_mark_frame(
-            right_frame,
+        action_frame = ttk.Frame(right_frame)
+
+        action_frame.pack(
+            fill="x",
+            pady=(8, 8),
+        )
+
+        self.match_button = ttk.Button(
+            action_frame,
+            text="Подходит",
+            command=lambda: self.mark_match(True),
+            state="disabled",
+        )
+        self.match_button.pack(side="left")
+
+        self.responded_button = ttk.Button(
+            action_frame,
+            text="Откликнулся",
+            command=self.mark_responded,
+            state="disabled",
+        )
+        self.responded_button.pack(
+            side="left",
+            padx=(8, 0),
+        )
+
+        self.not_match_button = ttk.Button(
+            action_frame,
+            text="Не подходит",
+            command=lambda: self.mark_match(False),
+            state="disabled",
+        )
+        self.not_match_button.pack(
+            side="left",
+            padx=(8, 0),
+        )
+
+
+        self.mark_status = ttk.Label(
+            action_frame,
+            text="",
+            font=("Segoe UI", 9, "bold"),
+        )
+
+        self.mark_status.pack(
+            side="left",
+            padx=10,
         )
 
         ttk.Label(
@@ -433,119 +416,15 @@ class FLView(ttk.Frame):
             wrap="word",
             font=("Consolas", 10),
         )
+
         self.details_text.pack(
             fill="both",
             expand=True,
         )
 
-    def create_mark_frame(
-        self,
-        parent,
-    ) -> None:
-        self.mark_frame = ttk.LabelFrame(
-            parent,
-            text="Разметка для обучения",
-        )
-
-        self.mark_frame.pack(
-            fill="x",
-            pady=(8, 8),
-            padx=4,
-        )
-
-        self.mark_var = tk.IntVar(
-            value=-1,
-        )
-
-        rb_frame = ttk.Frame(
-            self.mark_frame,
-        )
-        rb_frame.pack(
-            anchor="w",
-            fill="x",
-            padx=5,
-            pady=4,
-        )
-
-        ttk.Radiobutton(
-            rb_frame,
-            text="HIDDEN (0)",
-            variable=self.mark_var,
-            value=JobPriority.HIDDEN.value,
-        ).pack(
-            side="left",
-            padx=(0, 10),
-        )
-
-        ttk.Radiobutton(
-            rb_frame,
-            text="LOW (1)",
-            variable=self.mark_var,
-            value=JobPriority.LOW.value,
-        ).pack(
-            side="left",
-            padx=10,
-        )
-
-        ttk.Radiobutton(
-            rb_frame,
-            text="MEDIUM (2)",
-            variable=self.mark_var,
-            value=JobPriority.MEDIUM.value,
-        ).pack(
-            side="left",
-            padx=10,
-        )
-
-        ttk.Radiobutton(
-            rb_frame,
-            text="HIGH (3)",
-            variable=self.mark_var,
-            value=JobPriority.HIGH.value,
-        ).pack(
-            side="left",
-            padx=10,
-        )
-
-        button_frame = ttk.Frame(
-            self.mark_frame,
-        )
-        button_frame.pack(
-            anchor="w",
-            fill="x",
-            padx=5,
-            pady=(0, 6),
-        )
-
-        self.save_mark_btn = ttk.Button(
-            button_frame,
-            text="Сохранить оценку",
-            command=self.save_human_mark,
-            state="disabled",
-        )
-        self.save_mark_btn.pack(
-            side="left",
-        )
-
-        self.mark_status = ttk.Label(
-            button_frame,
-            text="",
-            font=(
-                "Segoe UI",
-                9,
-                "bold",
-            ),
-        )
-
-        self.mark_status.pack(
-            side="left",
-            padx=10,
-        )
-
     def start_loading(self) -> None:
         self.set_loading_state(
-            "Поиск новых и обновление "
-            "активных вакансий...",
+            "Поиск новых и обновление активных заказов...",
         )
 
         self.clear_ui()
@@ -558,11 +437,9 @@ class FLView(ttk.Frame):
                 ),
         )
 
-    def start_refresh_active_jobs(
-        self,
-    ) -> None:
+    def start_refresh_active_jobs(self) -> None:
         self.set_loading_state(
-            "Обновление активных вакансий...",
+            "Обновление активных заказов...",
         )
 
         self.clear_ui()
@@ -582,12 +459,23 @@ class FLView(ttk.Frame):
         self.load_button.config(
             state="disabled",
         )
+
         self.refresh_button.config(
             state="disabled",
         )
+
         self.open_button.config(
             state="disabled",
         )
+
+        self.match_button.config(
+            state="disabled",
+        )
+
+        self.not_match_button.config(
+            state="disabled",
+        )
+
         self.status_label.config(
             text=text,
         )
@@ -596,48 +484,49 @@ class FLView(ttk.Frame):
         self,
         result,
     ) -> None:
-        if isinstance(
-            result,
-            Exception,
-        ):
+        if isinstance(result, Exception):
             self.show_error(result)
             return
 
         self.show_result(result)
 
     def clear_ui(self) -> None:
-        self.jobs = []
+        self.jobs.clear()
 
-        for item_id in (
-            self.tree.get_children()
-        ):
+        for item_id in self.tree.get_children():
             self.tree.delete(item_id)
+
+        self.total_cnt = 0
 
         self.clear_details_panel()
 
-    def clear_details_panel(
-        self,
-    ) -> None:
+    def clear_details_panel(self) -> None:
         self.selected_job = None
 
         self.title_var.set(
             "Название: ",
         )
+
         self.feed_var.set(
             "Лента: ",
         )
+
         self.published_at_var.set(
             "Опубликовано: ",
         )
+
         self.tags_var.set(
             "Теги: ",
         )
+
         self.budget_var.set(
             "Бюджет: ",
         )
+
         self.responses_var.set(
             "Отклики: ",
         )
+
         self.url_var.set(
             "Ссылка: ",
         )
@@ -647,39 +536,44 @@ class FLView(ttk.Frame):
             tk.END,
         )
 
-        self.mark_var.set(-1)
-
-        self.save_mark_btn.config(
-            state="disabled",
-        )
-        self.mark_status.config(
-            text="",
-        )
         self.open_button.config(
             state="disabled",
+        )
+
+        self.match_button.config(
+            state="disabled",
+        )
+
+        self.not_match_button.config(
+            state="disabled",
+        )
+
+        self.mark_status.config(
+            text="",
         )
 
     def show_result(
         self,
         result: CollectResult,
     ) -> None:
-        jobs = result.jobs
-        self.jobs = jobs
+        self.total_cnt = result.total_cnt
 
-        for index, active_job in enumerate(
-            jobs
-        ):
-            static_data = (
-                active_job.static_data
-            )
+        for active_job in result.jobs:
+            static_data = active_job.static_data
             job = static_data.feed_job
             page = static_data.page_data
-            offer_range = (
-                active_job.dynamic_data
-            )
-            priority = (
-                static_data.effective_priority
-            )
+            offer_range = active_job.dynamic_data
+
+            if static_data.id is None:
+                log.warning(
+                    "Пропущен заказ без ID: external_id=%s",
+                    job.external_id,
+                )
+                continue
+
+            item_id = str(static_data.id)
+
+            self.jobs[item_id] = active_job
 
             tags_text = (
                 ", ".join(job.tags[:2])
@@ -688,13 +582,8 @@ class FLView(ttk.Frame):
             )
 
             responses_text = (
-                str(
-                    offer_range.responses_count
-                )
-                if (
-                    offer_range.responses_count
-                    is not None
-                )
+                str(offer_range.responses_count)
+                if offer_range.responses_count is not None
                 else "-"
             )
 
@@ -702,56 +591,152 @@ class FLView(ttk.Frame):
                 page.budget_text or "-"
             )
 
+            is_ai_rejected = (
+                static_data.matches_profile is None
+                and static_data.ai is not None
+                and not static_data.ai.matches_profile
+            )
+
+            title = (
+                f"[AI−] {job.title}"
+                if is_ai_rejected
+                else job.title
+            )
+
+            row_tags = (
+                ("ai_rejected",)
+                if is_ai_rejected
+                else ()
+            )
+
             self.tree.insert(
                 "",
                 "end",
-                iid=str(index),
+                iid=item_id,
                 values=(
-                    priority_text(priority),
-                    job.title,
+                    title,
                     job.feed_name,
                     responses_text,
                     budget_text,
                     tags_text,
                 ),
-                tags=(
-                    priority_tag(priority),
-                ),
+                tags=row_tags,
             )
 
-        self.status_label.config(
-            text=(
-                "Готово. "
-                f"Актуальных: "
-                f"{result.passed_cnt}; "
-                f"всего собрано: "
-                f"{result.total_cnt}"
-            ),
-        )
+        self.update_status()
 
         self.load_button.config(
             state="normal",
         )
+
         self.refresh_button.config(
             state="normal",
         )
 
-        if not jobs:
+        children = self.tree.get_children()
+
+        if not children:
             return
 
-        first_id = (
-            self.tree
-            .get_children()[0]
-        )
+        first_id = children[0]
 
         self.tree.selection_set(
             first_id,
         )
+
         self.tree.focus(
             first_id,
         )
 
         self.on_job_select(None)
+
+    def on_responded(
+        self,
+        result,
+        item_id: str,
+    ) -> None:
+        active_job = self.jobs.get(item_id)
+        is_selected = item_id in self.tree.selection()
+
+        if isinstance(result, Exception):
+            if is_selected and active_job is not None:
+                self.responded_button.config(state="normal")
+                self.not_match_button.config(state="normal")
+
+                self.match_button.config(
+                    state=(
+                        "disabled"
+                        if active_job.static_data.matches_profile is True
+                        else "normal"
+                    ),
+                )
+
+                self.mark_status.config(
+                    text="Ошибка БД",
+                    foreground="red",
+                )
+
+            log.error(
+                "Ошибка сохранения отклика: %s",
+                result,
+                exc_info=result,
+            )
+            return
+
+        self.jobs.pop(item_id, None)
+
+        if self.tree.exists(item_id):
+            self.tree.delete(item_id)
+
+        self.update_status()
+
+        if is_selected:
+            self.clear_details_panel()
+            self.select_first_job()
+
+
+    def mark_responded(self) -> None:
+        if self.selected_job is None:
+            return
+
+        static_data = self.selected_job.static_data
+
+        if static_data.id is None:
+            self.mark_status.config(
+                text="Ошибка: нет ID записи",
+                foreground="red",
+            )
+            return
+
+        item_id = str(static_data.id)
+
+        self.match_button.config(state="disabled")
+        self.responded_button.config(state="disabled")
+        self.not_match_button.config(state="disabled")
+
+        self.mark_status.config(
+            text="Сохранение...",
+            foreground="black",
+        )
+
+        self.backend.responded(
+            job=static_data,
+            callback=lambda result: self.enqueue_callback(
+                self.on_responded,
+                result,
+                item_id,
+            ),
+        )
+
+
+    def update_status(self) -> None:
+        self.status_label.config(
+            text=(
+                "Готово. "
+                f"Актуальных: {len(self.jobs)}; "
+                f"всего собрано: {self.total_cnt}"
+            ),
+        )
 
     def on_job_select(
         self,
@@ -763,18 +748,16 @@ class FLView(ttk.Frame):
             return
 
         item_id = selected[0]
-        active_job = self.jobs[
-            int(item_id)
-        ]
 
-        static_data = (
-            active_job.static_data
-        )
+        active_job = self.jobs.get(item_id)
+
+        if active_job is None:
+            return
+
+        static_data = active_job.static_data
         job = static_data.feed_job
         page = static_data.page_data
-        offer_range = (
-            active_job.dynamic_data
-        )
+        offer_range = active_job.dynamic_data
         ai = static_data.ai
 
         self.selected_job = active_job
@@ -802,8 +785,7 @@ class FLView(ttk.Frame):
             )
 
         self.published_at_var.set(
-            "Опубликовано: "
-            f"{published_at_text}",
+            f"Опубликовано: {published_at_text}",
         )
 
         self.tags_var.set(
@@ -816,8 +798,7 @@ class FLView(ttk.Frame):
         )
 
         self.budget_var.set(
-            "Бюджет: "
-            f"{page.budget_text or '-'}",
+            f"Бюджет: {page.budget_text or '-'}",
         )
 
         self.url_var.set(
@@ -826,18 +807,13 @@ class FLView(ttk.Frame):
 
         responses_count = (
             offer_range.responses_count
-            if (
-                offer_range.responses_count
-                is not None
-            )
+            if offer_range.responses_count is not None
             else "-"
         )
 
-        price_range = (
-            format_price_range(
-                offer_range.response_price_min,
-                offer_range.response_price_max,
-            )
+        price_range = format_price_range(
+            offer_range.response_price_min,
+            offer_range.response_price_max,
         )
 
         self.responses_var.set(
@@ -846,38 +822,21 @@ class FLView(ttk.Frame):
             f"цены: {price_range}",
         )
 
-        self.mark_var.set(
-            static_data.priority.value
-            if (
-                static_data.priority
-                is not None
-            )
-            else -1
-        )
-
-        self.save_mark_btn.config(
-            state="normal",
-        )
-        self.mark_status.config(
-            text="",
-        )
-
         self.details_text.delete(
             "1.0",
             tk.END,
         )
 
         if ai is not None:
-            self.details_text.insert(
-                tk.END,
-                "Вердикт ИИ: "
-                f"{priority_text(ai.priority)}\n",
+            ai_status = (
+                "Подходит"
+                if ai.matches_profile
+                else "Предварительно не подходит"
             )
 
             self.details_text.insert(
                 tk.END,
-                "Уверенность ИИ: "
-                f"{ai.confidence:.0%}\n",
+                f"ИИ: {ai_status}\n",
             )
 
             self.details_text.insert(
@@ -896,20 +855,32 @@ class FLView(ttk.Frame):
             state="normal",
         )
 
-    def save_human_mark(
-        self,
-    ) -> None:
+        self.match_button.config(
+            state=(
+                "disabled"
+                if static_data.matches_profile is True
+                else "normal"
+            ),
+        )
+
+        self.not_match_button.config(
+            state="normal",
+        )
+        self.responded_button.config(state="normal")
+
+        self.mark_status.config(
+            text=(
+                "Подходит"
+                if static_data.matches_profile is True
+                else ""
+            ),
+        )
+
+    def mark_match(self, matches_profile: bool) -> None:
         if self.selected_job is None:
             return
 
-        mark_value = self.mark_var.get()
-
-        if mark_value == -1:
-            return
-
-        static_data = (
-            self.selected_job.static_data
-        )
+        static_data = self.selected_job.static_data
 
         if static_data.id is None:
             self.mark_status.config(
@@ -918,100 +889,123 @@ class FLView(ttk.Frame):
             )
             return
 
-        selected = self.tree.selection()
+        item_id = str(static_data.id)
 
-        if not selected:
-            return
-
-        item_id = selected[0]
-
-        self.save_mark_btn.config(
-            state="disabled",
-        )
+        self.match_button.config(state="disabled")
+        self.not_match_button.config(state="disabled")
 
         self.mark_status.config(
             text="Сохранение...",
             foreground="black",
         )
 
-        self.backend.update_priority(
-            job_id=static_data.id,
-            mark=mark_value,
-            callback=lambda result:
-                self.enqueue_callback(
-                    self.on_mark_saved,
-                    result,
-                    item_id,
-                    mark_value,
-                ),
+        self.backend.update_match(
+            #job_id=static_data.id,
+            job=static_data,
+            matches_profile=matches_profile,
+            callback=lambda result: self.enqueue_callback(
+                self.on_match_updated,
+                result,
+                item_id,
+                matches_profile,
+            ),
         )
 
-    def on_mark_saved(
+    def on_match_updated(
         self,
         result,
         item_id: str,
-        mark_value: int,
+        matches_profile: bool,
     ) -> None:
-        if isinstance(
-            result,
-            Exception,
-        ):
-            self.save_mark_btn.config(
-                state="normal",
-            )
+        active_job = self.jobs.get(item_id)
+        is_selected = item_id in self.tree.selection()
 
-            self.mark_status.config(
-                text="Ошибка БД",
-                foreground="red",
-            )
+        if isinstance(result, Exception):
+            if is_selected and active_job is not None:
+                self.match_button.config(
+                    state=(
+                        "disabled"
+                        if active_job.static_data.matches_profile is True
+                        else "normal"
+                    ),
+                )
+                self.not_match_button.config(
+                    state="normal",
+                )
+
+                self.mark_status.config(
+                    text="Ошибка БД",
+                    foreground="red",
+                )
 
             log.error(
-                "Ошибка сохранения "
-                "разметки: %s",
+                "Ошибка сохранения matches_profile: %s",
                 result,
                 exc_info=result,
             )
             return
 
-        active_job = self.jobs[
-            int(item_id)
-        ]
+        if active_job is None:
+            return
 
-        active_job.static_data.priority = (
-            JobPriority(mark_value)
+        active_job.static_data.matches_profile = matches_profile
+
+        if not matches_profile:
+            self.jobs.pop(item_id, None)
+
+            if self.tree.exists(item_id):
+                self.tree.delete(item_id)
+
+            self.update_status()
+
+            if is_selected:
+                self.clear_details_panel()
+                self.select_first_job()
+
+            return
+
+        if self.tree.exists(item_id):
+            self.tree.set(
+                item_id,
+                "title",
+                active_job.static_data.feed_job.title,
+            )
+            self.tree.item(
+                item_id,
+                tags=(),
+            )
+
+        if is_selected:
+            self.match_button.config(
+                state="disabled",
+            )
+            self.not_match_button.config(
+                state="normal",
+            )
+            self.mark_status.config(
+                text="Подходит",
+                foreground="black",
+            )
+
+    def select_first_job(self) -> None:
+        children = self.tree.get_children()
+
+        if not children:
+            return
+
+        first_id = children[0]
+
+        self.tree.selection_set(
+            first_id,
         )
 
-        priority = (
-            active_job
-            .static_data
-            .priority
+        self.tree.focus(
+            first_id,
         )
 
-        self.tree.set(
-            item_id,
-            "priority",
-            priority_text(priority),
-        )
+        self.on_job_select(None)
 
-        self.tree.item(
-            item_id,
-            tags=(
-                priority_tag(priority),
-            ),
-        )
-
-        self.save_mark_btn.config(
-            state="normal",
-        )
-
-        self.mark_status.config(
-            text="Сохранено",
-            foreground="green",
-        )
-
-    def open_selected_job(
-        self,
-    ) -> None:
+    def open_selected_job(self) -> None:
         if self.selected_job is None:
             return
 
@@ -1036,10 +1030,20 @@ class FLView(ttk.Frame):
         self.load_button.config(
             state="normal",
         )
+
         self.refresh_button.config(
             state="normal",
         )
+
         self.open_button.config(
+            state="disabled",
+        )
+
+        self.match_button.config(
+            state="disabled",
+        )
+
+        self.not_match_button.config(
             state="disabled",
         )
 
@@ -1050,8 +1054,7 @@ class FLView(ttk.Frame):
 
         self.details_text.insert(
             "1.0",
-            "Ошибка при загрузке "
-            "вакансий:\n\n"
+            "Ошибка при загрузке заказов:\n\n"
             f"{error}",
         )
 

@@ -9,7 +9,8 @@ def map_ai_analysis_to_orm(obj: dto.AIAnalysis) -> models.AIAnalysis:
         job_id=obj.job_id,
         explanation=obj.explanation,
         confidence=obj.confidence,
-        priority=obj.priority
+        matches_profile=obj.matches_profile
+        #priority=obj.priority
     )
 
 
@@ -18,11 +19,17 @@ def map_ai_analysis_to_dto(obj: models.AIAnalysis) -> dto.AIAnalysis:
         job_id=obj.job_id,
         explanation=obj.explanation,
         confidence=obj.confidence,
-        priority=dto.JobPriority(obj.priority)
+        matches_profile=obj.matches_profile
+        #priority=dto.JobPriority(obj.priority)
     )
 
 
 def map_job_static_data_to_orm(obj: dto.JobStaticData) -> models.JobStaticData:
+    published_at = obj.feed_job.published_at
+
+    if isinstance(published_at, str):
+        published_at = parsedate_to_datetime(published_at)
+
     return models.JobStaticData(
         id=obj.id,
         url=obj.feed_job.url,
@@ -36,8 +43,9 @@ def map_job_static_data_to_orm(obj: dto.JobStaticData) -> models.JobStaticData:
         is_hidden=obj.is_hidden,
         budget=obj.page_data.budget_text,
         is_closed=obj.page_data.is_closed,
-        priority=obj.priority,
-        published_at=parsedate_to_datetime(obj.feed_job.published_at) if obj.feed_job.published_at else None
+        matches_profile=obj.matches_profile,
+        published_at=published_at,
+        responded_at=obj.responded_at,
     )
 
 
@@ -49,7 +57,7 @@ def map_job_static_data_to_dto(obj: models.JobStaticData) -> dto.JobStaticData:
         url=obj.url,
         tags=obj.tags_raw.split(",") if obj.tags_raw else [],
         feed_name=obj.feed_name,
-        published_at=obj.published_at
+        published_at=obj.published_at,
     )
     ai = None
     if "ai_analysis" not in inspect(obj).unloaded and obj.ai_analysis is not None:
@@ -60,13 +68,15 @@ def map_job_static_data_to_dto(obj: models.JobStaticData) -> dto.JobStaticData:
     return dto.JobStaticData(
         id=obj.id,
         feed_job=job,
-        priority=(
-            dto.JobPriority(obj.priority)
-            if obj.priority is not None
-            else None
-        ),
+        matches_profile=obj.matches_profile,
+        # priority=(
+        #     dto.JobPriority(obj.priority)
+        #     if obj.priority is not None
+        #     else None
+        # ),
         ai=ai,
-        page_data=page_data
+        page_data=page_data,
+        responded_at=obj.responded_at
     )
 
 

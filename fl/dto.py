@@ -3,11 +3,11 @@ from enum import IntEnum
 from datetime import datetime
 
 
-class JobPriority(IntEnum):
-    HIDDEN = 0
-    LOW = 1
-    MEDIUM = 2
-    HIGH = 3
+# class JobPriority(IntEnum):
+#     HIDDEN = 0
+#     LOW = 1
+#     MEDIUM = 2
+#     HIGH = 3
 
 
 @dataclass
@@ -39,7 +39,7 @@ class OfferRange:
 class AIAnalysis:
     explanation: str
     confidence: float
-    priority: JobPriority
+    matches_profile: bool
     job_id: int | None = None
 
 
@@ -47,17 +47,31 @@ class AIAnalysis:
 class JobStaticData:
     feed_job: FeedJob
     page_data: JobPageData
+    matches_profile: bool | None = None
     id: int | None = None
-    priority: JobPriority | None = None
     ai: AIAnalysis | None = None
+    responded_at: datetime | None = None
 
     @property
-    def is_hidden(self):
-        return self.page_data.is_closed or self.priority == JobPriority.HIDDEN
+    def human_or_ai_match(self) -> bool:
+        return self.matches_profile if self.matches_profile is not None else self.ai.matches_profile
 
     @property
-    def effective_priority(self):
-        return self.priority if self.priority is not None else self.ai.priority
+    def human_matches(self) -> bool:
+        # return (
+        #     self.matches_profile
+        #     if self.matches_profile is not None
+        #     else self.ai.matches_profile
+        # )
+        return self.matches_profile if self.matches_profile is not None else True
+
+    @property
+    def is_hidden(self) -> bool:
+        return (
+            self.page_data.is_closed
+            or self.human_matches is False
+            or self.responded_at is not None
+        )
 
 
 @dataclass

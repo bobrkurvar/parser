@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 class HttpClient:
     BASE_URL = "https://api.hh.ru"
-    _scraper = Scraper(retry_on=RateLimitError, decrease_on=RateLimitError, failed_on=ResourceNotFoundError)
+    _scraper = Scraper(retry_on=RateLimitError, decrease_on=RateLimitError)
 
     def __init__(self) -> None:
         headers = {
