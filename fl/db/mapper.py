@@ -69,11 +69,6 @@ def map_job_static_data_to_dto(obj: models.JobStaticData) -> dto.JobStaticData:
         id=obj.id,
         feed_job=job,
         matches_profile=obj.matches_profile,
-        # priority=(
-        #     dto.JobPriority(obj.priority)
-        #     if obj.priority is not None
-        #     else None
-        # ),
         ai=ai,
         page_data=page_data,
         responded_at=obj.responded_at
